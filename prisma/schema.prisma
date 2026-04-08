@@ -1,0 +1,39 @@
+generator client {
+    provider = "prisma-client"
+    output   = "../src/generated/prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model Guild {
+    id         String      @id @default(cuid())
+    wclId      Int         @unique
+    name       String
+    server     String
+    region     String
+    characters Character[]
+    createdAt  DateTime    @default(now()) @db.Timestamptz(3)
+    updatedAt  DateTime    @updatedAt @db.Timestamptz(3)
+
+    @@unique([name, server, region])
+}
+
+model Character {
+    id        String   @id @default(cuid())
+    wclId     Int      @unique
+    name      String
+    server    String
+    className String
+    guildRank Int      @default(0)
+    active    Boolean  @default(true)
+    guildId   String
+    guild     Guild    @relation(fields: [guildId], references: [id])
+    createdAt DateTime @default(now()) @db.Timestamptz(3)
+    updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+    @@unique([name, server])
+    @@index([guildId])
+    @@index([active])
+}
