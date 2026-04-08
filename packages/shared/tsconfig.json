@@ -1,12 +1,11 @@
 {
-    "extends": "./tsconfig.json",
+    "extends": "../../tsconfig.json",
     "compilerOptions": {
         "target": "ES2024",
         "module": "ESNext",
         "moduleResolution": "bundler",
         "lib": ["ES2024"],
-        "types": ["node"],
         "noEmit": true
     },
-    "include": ["scripts/**/*.ts"]
+    "include": ["src/**/*"]
 }

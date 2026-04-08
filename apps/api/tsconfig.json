@@ -1,17 +1,17 @@
 {
-    "extends": "./tsconfig.json",
+    "extends": "../../tsconfig.json",
     "compilerOptions": {
         "target": "ES2024",
         "module": "ESNext",
         "moduleResolution": "bundler",
         "lib": ["ES2024"],
-        "outDir": "./dist/server",
+        "outDir": "./dist",
         "rootDir": "./src",
         "declaration": true,
         "sourceMap": true,
         "paths": {
-            "@server/*": ["./src/server/*"]
+            "@server/*": ["./src/*"]
         }
     },
-    "include": ["src/server/**/*", "src/generated/**/*", "src/guild.config.ts"]
+    "include": ["src/**/*"]
 }

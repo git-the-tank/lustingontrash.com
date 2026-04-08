@@ -1,6 +1,6 @@
 # CI must pass before Railway deploys (enable Check Suites in Railway dashboard)
 [build]
-buildCommand = "pnpm run db:generate && pnpm run build"
+buildCommand = "pnpm run db:generate && pnpm run build:server"
 
 [deploy]
 startCommand = "pnpm run start"

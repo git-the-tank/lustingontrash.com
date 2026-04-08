@@ -34,7 +34,10 @@ jobs:
       - name: Run checks
         run: pnpm run check
 
-      - name: Build
-        run: pnpm run build
+      - name: Build client
+        run: pnpm run build:client
+
+      - name: Build server
+        run: pnpm run build:server
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy

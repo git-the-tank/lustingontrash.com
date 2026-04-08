@@ -6,12 +6,21 @@ import path from 'path';
 export default defineConfig({
     root: '.',
     build: {
-        outDir: 'dist/client',
+        outDir: 'dist',
+        rollupOptions: {
+            input: {
+                main: path.resolve(import.meta.dirname, 'index.html'),
+                parseboard: path.resolve(
+                    import.meta.dirname,
+                    'parseboard/index.html'
+                ),
+            },
+        },
     },
     plugins: [react(), tailwindcss()],
     resolve: {
         alias: {
-            '@client': path.resolve(import.meta.dirname, './src/client'),
+            '@client': path.resolve(import.meta.dirname, './src'),
         },
     },
     server: {

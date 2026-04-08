@@ -1,7 +1,7 @@
 import { prisma } from '../db/index.js';
 import { fetchRoster } from '../wowaudit/client.js';
 import type { WowauditCharacter } from '../wowaudit/client.js';
-import { guildConfig } from '../../guild.config.js';
+import { guildConfig } from '@lot/shared/guild.config.js';
 
 const INCLUDED_RANKS = new Set(['Main', 'Trial']);
 

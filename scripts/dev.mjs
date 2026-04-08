@@ -1,8 +1,16 @@
 import { spawn } from 'child_process';
 
 const procs = [
-    { name: 'server', cmd: 'pnpm', args: ['run', 'dev:server'] },
-    { name: 'client', cmd: 'pnpm', args: ['run', 'dev:client'] },
+    {
+        name: 'server',
+        cmd: 'pnpm',
+        args: ['--filter', '@lot/api', 'run', 'dev'],
+    },
+    {
+        name: 'client',
+        cmd: 'pnpm',
+        args: ['--filter', '@lot/web', 'run', 'dev'],
+    },
 ];
 
 const children = procs.map(({ name, cmd, args }) => {

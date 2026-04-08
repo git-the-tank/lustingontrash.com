@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { GraphQLClient, gql } from 'graphql-request';
-import { guildConfig } from '../src/guild.config.js';
+import { guildConfig } from '@lot/shared/guild.config.js';
 
 const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
 const API_URL = 'https://www.warcraftlogs.com/api/v2/client';

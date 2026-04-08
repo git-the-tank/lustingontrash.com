@@ -1,0 +1,13 @@
+{
+    "name": "@lot/shared",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Shared config and types for Lusting on Trash",
+    "exports": {
+        "./*": "./src/*"
+    },
+    "devDependencies": {
+        "typescript": "6.0.2"
+    }
+}

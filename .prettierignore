@@ -1,4 +1,4 @@
 dist/
 node_modules/
 pnpm-lock.yaml
-src/server/generated/
+apps/api/src/generated/

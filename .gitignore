@@ -8,10 +8,9 @@ dist/
 .DS_Store
 .idea/
 .vscode/
-.claude/settings.local.json
+.claude/
+.playwright-mcp/
 *.log
 pnpm-debug.log*
 
-src/server/generated/
-
-/src/generated/prisma
+apps/api/src/generated/
