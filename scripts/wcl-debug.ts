@@ -102,18 +102,12 @@ async function main(): Promise<void> {
         byRank.set(m.guildRank, list);
     }
 
-    console.log(`--- ${guild.guildData.guild.name} — Members by Rank ---`);
-    console.log(`rankFilter: [${guildConfig.rankFilter.join(', ')}]\n`);
+    console.log(`--- ${guild.guildData.guild.name} — Members by Rank ---\n`);
 
     for (const [rank, chars] of [...byRank.entries()].sort(
         (a, b) => a[0] - b[0]
     )) {
-        const included =
-            guildConfig.rankFilter.length === 0 ||
-            guildConfig.rankFilter.includes(rank);
-        console.log(
-            `Rank ${rank} (${chars.length} members) ${included ? '✓ INCLUDED' : '✗ EXCLUDED'}:`
-        );
+        console.log(`Rank ${rank} (${chars.length} members):`);
         for (const c of chars) {
             console.log(
                 `    ${c.name} — classID:${c.classID} (${c.server.name})`

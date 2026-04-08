@@ -1,16 +1,17 @@
 import { prisma } from '../db/index.js';
-import { getWclClient } from '../wcl/client.js';
-import { GUILD_MEMBERS_QUERY } from '../wcl/queries.js';
-import { WCL_CLASS_NAMES } from '../wcl/types.js';
-import type { WclGuildData } from '../wcl/types.js';
+import { fetchRoster } from '../wowaudit/client.js';
+import type { WowauditCharacter } from '../wowaudit/client.js';
 import { guildConfig } from '../../guild.config.js';
 
+const INCLUDED_RANKS = new Set(['Main', 'Trial']);
+
 export interface PreviewCharacter {
-    wclId: number;
+    wowauditId: number;
     name: string;
     server: string;
     className: string;
-    guildRank: number;
+    role: string;
+    rank: string;
 }
 
 export interface PreviewResult {
@@ -20,45 +21,35 @@ export interface PreviewResult {
     characters: PreviewCharacter[];
 }
 
-async function fetchGuildMembers(): Promise<{
-    wclGuild: WclGuildData['guildData']['guild'];
-    included: PreviewCharacter[];
+function toPreview(char: WowauditCharacter): PreviewCharacter {
+    return {
+        wowauditId: char.id,
+        name: char.name,
+        server: char.realm,
+        className: char.class,
+        role: char.role,
+        rank: char.rank,
+    };
+}
+
+function filterRoster(roster: WowauditCharacter[]): {
+    included: WowauditCharacter[];
     total: number;
-}> {
-    const client = await getWclClient();
-    const data = await client.request<WclGuildData>(GUILD_MEMBERS_QUERY, {
-        id: guildConfig.wclGuildId,
-    });
-
-    const wclGuild = data.guildData.guild;
-    let members = wclGuild.members.data;
-    const total = members.length;
-
-    if (guildConfig.rankFilter.length > 0) {
-        members = members.filter((m) =>
-            guildConfig.rankFilter.includes(m.guildRank)
-        );
-    }
-
-    const included: PreviewCharacter[] = members.map((m) => ({
-        wclId: m.id,
-        name: m.name,
-        server: m.server.name,
-        className: WCL_CLASS_NAMES[m.classID] ?? 'Unknown',
-        guildRank: m.guildRank,
-    }));
-
-    return { wclGuild, included, total };
+} {
+    const tracking = roster.filter((c) => c.status === 'tracking');
+    const included = tracking.filter((c) => INCLUDED_RANKS.has(c.rank));
+    return { included, total: tracking.length };
 }
 
 export async function previewCharacters(): Promise<PreviewResult> {
-    const { wclGuild, included, total } = await fetchGuildMembers();
+    const roster = await fetchRoster();
+    const { included, total } = filterRoster(roster);
 
     return {
-        guild: wclGuild.name,
+        guild: guildConfig.name,
         total,
         filtered: total - included.length,
-        characters: included,
+        characters: included.map(toPreview),
     };
 }
 
@@ -68,61 +59,63 @@ export async function syncCharacters(): Promise<{
     filtered: number;
     deactivated: number;
 }> {
-    const { wclGuild, included, total } = await fetchGuildMembers();
+    const roster = await fetchRoster();
+    const { included, total } = filterRoster(roster);
 
     const guild = await prisma.guild.upsert({
-        where: { wclId: wclGuild.id },
+        where: { wclId: guildConfig.wclGuildId },
         update: {
-            name: wclGuild.name,
-            server: wclGuild.server.name,
-            region: wclGuild.server.region.slug,
+            name: guildConfig.name,
+            server: guildConfig.server,
+            region: guildConfig.region,
         },
         create: {
-            wclId: wclGuild.id,
-            name: wclGuild.name,
-            server: wclGuild.server.name,
-            region: wclGuild.server.region.slug,
+            wclId: guildConfig.wclGuildId,
+            name: guildConfig.name,
+            server: guildConfig.server,
+            region: guildConfig.region,
         },
     });
 
-    const syncedWclIds: number[] = [];
+    const syncedIds: number[] = [];
 
     for (const char of included) {
         await prisma.character.upsert({
-            where: { wclId: char.wclId },
+            where: { wowauditId: char.id },
             update: {
                 name: char.name,
-                server: char.server,
-                className: char.className,
-                guildRank: char.guildRank,
+                server: char.realm,
+                className: char.class,
+                role: char.role,
+                rank: char.rank,
                 active: true,
             },
             create: {
-                wclId: char.wclId,
+                wowauditId: char.id,
                 name: char.name,
-                server: char.server,
-                className: char.className,
-                guildRank: char.guildRank,
+                server: char.realm,
+                className: char.class,
+                role: char.role,
+                rank: char.rank,
                 active: true,
                 guildId: guild.id,
             },
         });
-        syncedWclIds.push(char.wclId);
+        syncedIds.push(char.id);
     }
 
-    // Deactivate characters no longer in the filtered roster
     const deactivated = await prisma.character.updateMany({
         where: {
             guildId: guild.id,
             active: true,
-            wclId: { notIn: syncedWclIds },
+            wowauditId: { notIn: syncedIds },
         },
         data: { active: false },
     });
 
     return {
         guild: guild.name,
-        synced: syncedWclIds.length,
+        synced: syncedIds.length,
         filtered: total - included.length,
         deactivated: deactivated.count,
     };

@@ -25,11 +25,12 @@ export async function registerCharacterRoutes(
                             type: 'object',
                             properties: {
                                 id: { type: 'string' },
-                                wclId: { type: 'integer' },
+                                wowauditId: { type: 'integer' },
                                 name: { type: 'string' },
                                 server: { type: 'string' },
                                 className: { type: 'string' },
-                                guildRank: { type: 'integer' },
+                                role: { type: 'string' },
+                                rank: { type: 'string' },
                                 active: { type: 'boolean' },
                                 guild: {
                                     type: 'object',
@@ -60,7 +61,7 @@ export async function registerCharacterRoutes(
             schema: {
                 tags: ['sync'],
                 description:
-                    'Preview which characters would be synced (dry run — no DB writes)',
+                    'Preview which characters would be synced from wowaudit (dry run — no DB writes)',
                 response: {
                     200: {
                         type: 'object',
@@ -73,11 +74,12 @@ export async function registerCharacterRoutes(
                                 items: {
                                     type: 'object',
                                     properties: {
-                                        wclId: { type: 'integer' },
+                                        wowauditId: { type: 'integer' },
                                         name: { type: 'string' },
                                         server: { type: 'string' },
                                         className: { type: 'string' },
-                                        guildRank: { type: 'integer' },
+                                        role: { type: 'string' },
+                                        rank: { type: 'string' },
                                     },
                                 },
                             },
@@ -97,7 +99,7 @@ export async function registerCharacterRoutes(
             schema: {
                 tags: ['sync'],
                 description:
-                    'Sync guild members from Warcraft Logs (uses guild.config.ts)',
+                    'Sync guild members from wowaudit (uses guild.config.ts)',
                 response: {
                     200: {
                         type: 'object',
