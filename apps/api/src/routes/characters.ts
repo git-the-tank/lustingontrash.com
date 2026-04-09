@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/index.js';
 import { syncCharacters, previewCharacters } from '../jobs/syncCharacters.js';
+import { requireAuth } from '../auth/middleware.js';
 
 export async function registerCharacterRoutes(
     app: FastifyInstance
@@ -8,6 +9,7 @@ export async function registerCharacterRoutes(
     app.get(
         '/api/characters',
         {
+            preHandler: requireAuth,
             schema: {
                 tags: ['characters'],
                 description:
@@ -58,6 +60,7 @@ export async function registerCharacterRoutes(
     app.get(
         '/api/sync/characters/preview',
         {
+            preHandler: requireAuth,
             schema: {
                 tags: ['sync'],
                 description:
@@ -96,6 +99,7 @@ export async function registerCharacterRoutes(
     app.post(
         '/api/sync/characters',
         {
+            preHandler: requireAuth,
             schema: {
                 tags: ['sync'],
                 description:

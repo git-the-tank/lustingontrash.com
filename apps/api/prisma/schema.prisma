@@ -8,6 +8,11 @@ datasource db {
     provider = "postgresql"
 }
 
+enum Role {
+    MEMBER
+    ADMIN
+}
+
 model Guild {
     id         String      @id @default(cuid())
     wclId      Int         @unique
@@ -21,6 +26,30 @@ model Guild {
     @@unique([name, server, region])
 }
 
+model User {
+    id                        String      @id @default(cuid())
+    battlenetId               String      @unique
+    battletag                 String
+    role                      Role        @default(MEMBER)
+    guildMembershipVerifiedAt DateTime?   @db.Timestamptz(3)
+    lastLoginAt               DateTime    @db.Timestamptz(3)
+    characters                Character[]
+    sessions                  Session[]
+    createdAt                 DateTime    @default(now()) @db.Timestamptz(3)
+    updatedAt                 DateTime    @updatedAt @db.Timestamptz(3)
+}
+
+model Session {
+    id               String   @id @default(cuid())
+    userId           String
+    user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    refreshTokenHash String
+    expiresAt        DateTime @db.Timestamptz(3)
+    createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+    @@index([userId])
+}
+
 model Character {
     id         String   @id @default(cuid())
     wowauditId Int      @unique
@@ -32,10 +61,13 @@ model Character {
     active     Boolean  @default(true)
     guildId    String
     guild      Guild    @relation(fields: [guildId], references: [id])
+    userId     String?
+    user       User?    @relation(fields: [userId], references: [id])
     createdAt  DateTime @default(now()) @db.Timestamptz(3)
     updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
     @@unique([name, server])
     @@index([guildId])
     @@index([active])
+    @@index([userId])
 }

@@ -1,9 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCharacterRoutes } from './routes/characters.js';
+import { registerAuthRoutes } from './routes/auth.js';
 
 export async function createApp(): Promise<FastifyInstance> {
     const app = Fastify({ logger: true });
@@ -13,6 +15,11 @@ export async function createApp(): Promise<FastifyInstance> {
         origin: process.env.CORS_ORIGIN?.split(',') ?? [
             'http://localhost:3000',
         ],
+        credentials: true,
+    });
+
+    await app.register(cookie, {
+        secret: process.env.COOKIE_SECRET,
     });
 
     if (!isProd) {
@@ -32,6 +39,7 @@ export async function createApp(): Promise<FastifyInstance> {
     }
 
     await app.register(registerHealthRoutes);
+    await app.register(registerAuthRoutes);
     await app.register(registerCharacterRoutes);
 
     return app;
