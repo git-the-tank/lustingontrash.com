@@ -1,1 +1,2 @@
-/parseboard/*  /parseboard/index.html  200
+/parseboard/*  /app/:splat  301
+/app/*  /app/index.html  200

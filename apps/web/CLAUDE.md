@@ -1,6 +1,6 @@
 # @lot/web
 
-Static landing page and parseboard SPA for Lusting on Trash.
+Static landing page and guild SPA for Lusting on Trash.
 
 ## Stack
 
@@ -9,14 +9,15 @@ Static landing page and parseboard SPA for Lusting on Trash.
 ## Structure
 
 - `index.html` — Landing page entry point (static)
-- `parseboard/index.html` — SPA entry point
+- `app/index.html` — SPA entry point
 - `src/` — Source code
-    - `main.tsx` — React SPA entry (BrowserRouter with basename `/parseboard`)
-    - `App.tsx` — Route definitions
+    - `main.tsx` — React SPA entry (BrowserRouter with basename `/app`)
+    - `App.tsx` — Route definitions with auth guards
+    - `auth/` — Auth context, guard, and types (Battle.net OAuth)
     - `components/` — Shared UI components
-    - `pages/` — Page components
+    - `pages/` — Page components (Players, Login, AccessDenied)
     - `hooks/` — Custom hooks (`useApi`)
-    - `lib/` — Utilities (`api.ts` with `fetchApi`)
+    - `lib/` — Utilities (`api.ts` with `fetchApi` and auth token management)
     - `landing/` — Landing page JS/CSS entry
     - `index.css` — Tailwind import
 - `public/` — Static assets (class/role icons, `_redirects` for Cloudflare Pages)

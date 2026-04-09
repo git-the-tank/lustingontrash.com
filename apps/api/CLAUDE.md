@@ -12,14 +12,15 @@ Fastify REST API server for Lusting on Trash guild data.
 ## Structure
 
 - `src/` — Server source code
-    - `app.ts` — Fastify app creation, CORS config, route registration
+    - `app.ts` — Fastify app creation, CORS config, cookie plugin, route registration
     - `index.ts` — Entry point, listens on PORT (default 4000)
+    - `auth/` — Battle.net OAuth, JWT, sessions, guild membership verification, middleware
     - `db/` — Prisma client setup
     - `routes/` — API route handlers (`register*Routes` pattern)
     - `jobs/` — Batch sync jobs
     - `wcl/` — Warcraft Logs integration (auth, client, queries)
     - `wowaudit/` — WowAudit API client
-- `prisma/` — Schema and migrations
+- `prisma/` — Schema and migrations (User, Session, Guild, Character)
 - `scripts/` — Dev/debug utilities
 
 ## Code Conventions
@@ -47,6 +48,11 @@ pnpm run db:sync      # Run character sync
 - `DATABASE_URL` — Neon Postgres connection string
 - `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` — Warcraft Logs OAuth
 - `WOWAUDIT_API_KEY` — WowAudit API key
+- `BNET_CLIENT_ID` / `BNET_CLIENT_SECRET` — Battle.net OAuth
+- `JWT_SECRET` — Secret for signing JWTs
+- `COOKIE_SECRET` — Secret for `@fastify/cookie`
+- `API_URL` — Public API URL (for OAuth redirect URI)
+- `FRONTEND_URL` — Public frontend URL (for OAuth redirects)
 - `CORS_ORIGIN` — Allowed origins (comma-separated, defaults to `http://localhost:3000`)
 - `PORT` — Server port (default 4000)
 

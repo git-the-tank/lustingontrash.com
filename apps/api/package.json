@@ -16,6 +16,7 @@
         "db:sync": "tsx src/jobs/syncCharacters.ts"
     },
     "dependencies": {
+        "@fastify/cookie": "11.0.2",
         "@fastify/cors": "11.2.0",
         "@fastify/swagger": "9.7.0",
         "@fastify/swagger-ui": "5.2.5",
@@ -26,6 +27,7 @@
         "fastify": "5.8.4",
         "graphql": "16.13.2",
         "graphql-request": "7.4.0",
+        "jose": "6.2.2",
         "pg": "8.20.0"
     },
     "devDependencies": {

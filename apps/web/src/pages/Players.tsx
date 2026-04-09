@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
+import { CLASS_COLORS, classIconUrl } from '../lib/classColors';
 
 interface Character {
     id: string;
@@ -13,22 +14,6 @@ interface Character {
     };
 }
 
-const CLASS_COLORS: Record<string, string> = {
-    'Death Knight': '#C41E3A',
-    'Demon Hunter': '#A330C9',
-    Druid: '#FF7C0A',
-    Evoker: '#33937F',
-    Hunter: '#AAD372',
-    Mage: '#3FC7EB',
-    Monk: '#00FF98',
-    Paladin: '#F48CBA',
-    Priest: '#FFFFFF',
-    Rogue: '#FFF468',
-    Shaman: '#0070DD',
-    Warlock: '#8788EE',
-    Warrior: '#C69B6D',
-};
-
 const ROLES = ['Tank', 'Heal', 'Melee', 'Ranged'] as const;
 const RANKS = ['Main', 'Trial'] as const;
 
@@ -41,10 +26,6 @@ const ROLE_ORDER: Record<string, number> = {
     Melee: 2,
     Ranged: 3,
 };
-
-function classIconUrl(className: string): string {
-    return `/img/classes/${className.replace(/ /g, '')}.png`;
-}
 
 function roleIconUrl(role: string): string {
     return `/img/roles/${role}.png`;
@@ -379,7 +360,7 @@ export function Players(): React.ReactElement {
                                             className="h-7 w-7 rounded-full ring-1 ring-gray-700"
                                         />
                                         <span
-                                            className="font-medium"
+                                            className="font-bold"
                                             style={{
                                                 color:
                                                     CLASS_COLORS[
