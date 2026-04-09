@@ -25,5 +25,6 @@ export async function requireAuth(
         request.user = await verifyJwt(token);
     } catch {
         reply.code(401).send({ error: 'Invalid or expired token' });
+        return;
     }
 }

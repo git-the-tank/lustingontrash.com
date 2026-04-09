@@ -42,6 +42,14 @@ export async function validateSession(
     return session;
 }
 
+export async function rotateSession(
+    oldSessionId: string,
+    userId: string
+): Promise<{ refreshToken: string; session: Session }> {
+    await prisma.session.delete({ where: { id: oldSessionId } });
+    return createSession(userId);
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
     await prisma.session.delete({ where: { id: sessionId } });
 }

@@ -48,6 +48,7 @@ model Session {
     createdAt        DateTime @default(now()) @db.Timestamptz(3)
 
     @@index([userId])
+    @@index([refreshTokenHash])
 }
 
 model Character {

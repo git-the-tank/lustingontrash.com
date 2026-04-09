@@ -46,19 +46,25 @@ export function AuthProvider({
             clearTimeout(refreshTimerRef.current);
         }
 
+        const doRefresh = async (): Promise<void> => {
+            try {
+                const { token: newToken } = await fetchApi<{
+                    token: string;
+                }>('/auth/refresh', { method: 'POST' });
+                setAuthToken(newToken);
+                scheduleRefresh(newToken);
+            } catch {
+                setAuthToken(null);
+                setUser(null);
+            }
+        };
+
         if (msUntilRefresh > 0) {
-            refreshTimerRef.current = setTimeout(async () => {
-                try {
-                    const { token: newToken } = await fetchApi<{
-                        token: string;
-                    }>('/auth/refresh', { method: 'POST' });
-                    setAuthToken(newToken);
-                    scheduleRefresh(newToken);
-                } catch {
-                    setAuthToken(null);
-                    setUser(null);
-                }
+            refreshTimerRef.current = setTimeout(() => {
+                void doRefresh();
             }, msUntilRefresh);
+        } else {
+            void doRefresh();
         }
     }, []);
 
@@ -67,8 +73,8 @@ export function AuthProvider({
         initRef.current = true;
 
         async function init(): Promise<void> {
-            const params = new URLSearchParams(window.location.search);
-            const urlToken = params.get('token');
+            const hash = window.location.hash;
+            const urlToken = hash.startsWith('#token=') ? hash.slice(7) : null;
 
             if (urlToken) {
                 window.history.replaceState({}, '', window.location.pathname);

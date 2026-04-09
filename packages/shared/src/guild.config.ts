@@ -12,7 +12,4 @@ export const guildConfig = {
 
     // Guild ranks that grant admin access (0 = GM, 1 = Officer)
     adminRanks: [0, 1] as readonly number[],
-
-    // How often to re-verify guild membership (hours)
-    membershipCacheTtlHours: 4,
 };
