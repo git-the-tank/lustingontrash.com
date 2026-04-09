@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authConfig } from '@lot/shared/auth.config.js';
 import {
     getBattlenetAuthUrl,
@@ -9,12 +10,25 @@ import {
 import { signJwt } from '../auth/jwt.js';
 import {
     createSession,
+    rotateSession,
     validateSession,
     deleteSession,
 } from '../auth/session.js';
 import { verifyGuildMembership } from '../auth/membership.js';
 import { requireAuth } from '../auth/middleware.js';
 import { prisma } from '../db/index.js';
+
+const callbackQuerySchema = z.object({
+    code: z.string(),
+    state: z.string(),
+});
+
+function getCookieValue(
+    cookies: Record<string, string | undefined>,
+    name: string
+): string | undefined {
+    return cookies[name];
+}
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     app.get('/api/auth/login', async (_request, reply) => {
@@ -33,26 +47,36 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     });
 
     app.get('/api/auth/callback', async (request, reply) => {
-        const { code, state } = request.query as {
-            code?: string;
-            state?: string;
-        };
-        const storedState = (request.cookies as Record<string, string>)
-            .lot_oauth_state;
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
-        if (!code || !state || state !== storedState) {
+        const parsed = callbackQuerySchema.safeParse(request.query);
+        const storedState = getCookieValue(request.cookies, 'lot_oauth_state');
+
+        if (!parsed.success || parsed.data.state !== storedState) {
             return reply.code(400).send({ error: 'Invalid OAuth state' });
         }
 
         reply.clearCookie('lot_oauth_state', { path: '/api/auth' });
 
-        const tokenResponse = await exchangeCode(code);
-        const userInfo = await fetchUserInfo(tokenResponse.access_token);
-        const membership = await verifyGuildMembership(
-            tokenResponse.access_token
-        );
+        const { code } = parsed.data;
 
-        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+        let tokenResponse;
+        try {
+            tokenResponse = await exchangeCode(code);
+        } catch {
+            return reply.redirect(`${frontendUrl}/app/login`);
+        }
+
+        let userInfo;
+        let membership;
+        try {
+            [userInfo, membership] = await Promise.all([
+                fetchUserInfo(tokenResponse.access_token),
+                verifyGuildMembership(tokenResponse.access_token),
+            ]);
+        } catch {
+            return reply.redirect(`${frontendUrl}/app/login`);
+        }
 
         if (!membership.isMember) {
             return reply.redirect(`${frontendUrl}/app/access-denied`);
@@ -77,12 +101,14 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             },
         });
 
-        // Link guild characters to this user
-        for (const char of membership.guildCharacters) {
+        // Link guild characters to this user (only unclaimed characters)
+        const charNames = membership.guildCharacters.map((c) => c.name);
+        if (charNames.length > 0) {
             await prisma.character.updateMany({
                 where: {
-                    name: char.name,
+                    name: { in: charNames },
                     server: { equals: 'Area 52', mode: 'insensitive' },
+                    userId: null,
                 },
                 data: { userId: user.id },
             });
@@ -107,15 +133,11 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             ...(isProd ? { domain: '.lustingontrash.com' } : {}),
         });
 
-        return reply.redirect(
-            `${frontendUrl}/app?token=${encodeURIComponent(jwt)}`
-        );
+        return reply.redirect(`${frontendUrl}/app#token=${jwt}`);
     });
 
     app.post('/api/auth/refresh', async (request, reply) => {
-        const token = (request.cookies as Record<string, string>)[
-            authConfig.cookieName
-        ];
+        const token = getCookieValue(request.cookies, authConfig.cookieName);
 
         if (!token) {
             return reply.code(401).send({ error: 'No refresh token' });
@@ -137,6 +159,23 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             return reply.code(401).send({ error: 'User not found' });
         }
 
+        // Rotate refresh token
+        const { refreshToken: newRefreshToken } = await rotateSession(
+            session.id,
+            user.id
+        );
+
+        const isProd = process.env.NODE_ENV === 'production';
+
+        reply.setCookie(authConfig.cookieName, newRefreshToken, {
+            path: '/api/auth',
+            httpOnly: true,
+            secure: isProd,
+            sameSite: 'lax',
+            maxAge: authConfig.refreshTokenExpiryDays * 24 * 60 * 60,
+            ...(isProd ? { domain: '.lustingontrash.com' } : {}),
+        });
+
         const jwt = await signJwt({
             sub: user.id,
             role: user.role,
@@ -147,9 +186,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     });
 
     app.post('/api/auth/logout', async (request, reply) => {
-        const token = (request.cookies as Record<string, string>)[
-            authConfig.cookieName
-        ];
+        const token = getCookieValue(request.cookies, authConfig.cookieName);
 
         if (token) {
             const session = await validateSession(token);
