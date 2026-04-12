@@ -7,7 +7,7 @@ import {
     useRef,
     type ReactNode,
 } from 'react';
-import { fetchApi, setAuthToken } from '../lib/api';
+import { fetchApi, setAuthToken, getStoredToken } from '../lib/api';
 import type { User } from './types';
 
 interface AuthState {
@@ -84,22 +84,54 @@ export function AuthProvider({
                 try {
                     const userData = await fetchApi<User>('/auth/me');
                     setUser(userData);
+
+                    // Restore the URL the user was on before the OAuth
+                    // redirect, including hash-param filter state.
+                    const returnUrl = sessionStorage.getItem('lot_return_url');
+                    if (returnUrl) {
+                        sessionStorage.removeItem('lot_return_url');
+                        window.location.replace(returnUrl);
+                        return;
+                    }
                 } catch {
                     setAuthToken(null);
                 }
             } else {
-                try {
-                    const { token } = await fetchApi<{ token: string }>(
-                        '/auth/refresh',
-                        { method: 'POST' }
-                    );
-                    setAuthToken(token);
-                    scheduleRefresh(token);
+                // Try sessionStorage first (survives reloads within the
+                // same tab), then fall back to cookie-based refresh.
+                const stored = getStoredToken();
+                let recovered = false;
 
-                    const userData = await fetchApi<User>('/auth/me');
-                    setUser(userData);
-                } catch {
-                    // Not authenticated
+                if (stored) {
+                    const { exp } = decodeJwtPayload(stored);
+                    if (exp > Math.floor(Date.now() / 1000)) {
+                        setAuthToken(stored);
+                        scheduleRefresh(stored);
+                        try {
+                            const userData = await fetchApi<User>('/auth/me');
+                            setUser(userData);
+                            recovered = true;
+                        } catch {
+                            setAuthToken(null);
+                        }
+                    } else {
+                        setAuthToken(null);
+                    }
+                }
+
+                if (!recovered) {
+                    try {
+                        const { token } = await fetchApi<{
+                            token: string;
+                        }>('/auth/refresh', { method: 'POST' });
+                        setAuthToken(token);
+                        scheduleRefresh(token);
+
+                        const userData = await fetchApi<User>('/auth/me');
+                        setUser(userData);
+                    } catch {
+                        // Not authenticated
+                    }
                 }
             }
 

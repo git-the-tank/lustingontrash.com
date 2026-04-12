@@ -140,6 +140,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         const token = getCookieValue(request.cookies, authConfig.cookieName);
 
         if (!token) {
+            request.log.warn(
+                { cookieKeys: Object.keys(request.cookies) },
+                'refresh: no lot_refresh cookie found'
+            );
             return reply.code(401).send({ error: 'No refresh token' });
         }
 

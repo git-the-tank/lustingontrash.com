@@ -32,6 +32,12 @@ export function Layout(): React.ReactElement {
                         >
                             Players
                         </Link>
+                        <Link
+                            to="/parses"
+                            className="text-sm text-gray-400 hover:text-white"
+                        >
+                            Parses
+                        </Link>
                     </div>
                     {user && (
                         <div className="flex items-center gap-4">

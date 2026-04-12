@@ -1,9 +1,19 @@
 const BASE = import.meta.env.VITE_API_URL ?? '/api';
+const TOKEN_KEY = 'lot_jwt';
 
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null): void {
     authToken = token;
+    if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+    } else {
+        localStorage.removeItem(TOKEN_KEY);
+    }
+}
+
+export function getStoredToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
 }
 
 export async function fetchApi<T>(
