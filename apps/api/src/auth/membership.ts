@@ -63,12 +63,16 @@ export async function verifyGuildMembership(
     };
 }
 
+function slugifyServer(server: string): string {
+    return server.toLowerCase().replace(/['']/g, '').replace(/\s+/g, '-');
+}
+
 /**
- * Check if any of the given character names are still in the guild roster,
+ * Check if any of the given characters are still in the guild roster,
  * and return the resolved role. Uses the 1-day cached roster.
  */
 export async function checkMembershipByCharacters(
-    characterNames: string[]
+    characters: Array<{ name: string; server: string }>
 ): Promise<{ isMember: boolean; isAdmin: boolean }> {
     const roster = await getCachedRoster();
     const rosterMap = buildRosterMap(roster);
@@ -76,8 +80,8 @@ export async function checkMembershipByCharacters(
     let isMember = false;
     let isAdmin = false;
 
-    for (const name of characterNames) {
-        const key = `${name.toLowerCase()}-${guildConfig.realmSlug}`;
+    for (const char of characters) {
+        const key = `${char.name.toLowerCase()}-${slugifyServer(char.server)}`;
         const rank = rosterMap.get(key);
 
         if (rank !== undefined) {

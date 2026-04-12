@@ -19,15 +19,22 @@ enum Difficulty {
     MYTHIC
 }
 
+enum FightCategory {
+    PROGRESSION
+    FARM
+    IGNORED
+}
+
 model Guild {
     id         String      @id @default(cuid())
     wclId      Int         @unique
     name       String
     server     String
     region     String
-    characters Character[]
-    createdAt  DateTime    @default(now()) @db.Timestamptz(3)
-    updatedAt  DateTime    @updatedAt @db.Timestamptz(3)
+    characters   Character[]
+    fightConfigs FightConfig[]
+    createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+    updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
 
     @@unique([name, server, region])
 }
@@ -99,4 +106,18 @@ model Parse {
 
     @@unique([characterId, encounterId, difficulty])
     @@index([encounterId, difficulty])
+}
+
+model FightConfig {
+    id          String        @id @default(cuid())
+    guildId     String
+    guild       Guild         @relation(fields: [guildId], references: [id])
+    encounterId Int
+    difficulty  Difficulty
+    category    FightCategory @default(IGNORED)
+    createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+    updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+    @@unique([guildId, encounterId, difficulty])
+    @@index([guildId])
 }

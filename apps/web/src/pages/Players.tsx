@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { CLASS_COLORS, classIconUrl } from '../lib/classColors';
 import { FilterPill } from '../components/ranking/FilterPill';
@@ -302,7 +303,10 @@ export function Players(): React.ReactElement {
                                 }`}
                             >
                                 <td className="py-2.5 pl-4 pr-3">
-                                    <div className="flex items-center gap-3">
+                                    <Link
+                                        to={`/character/${encodeURIComponent(char.name)}`}
+                                        className="flex items-center gap-3 hover:opacity-80"
+                                    >
                                         <img
                                             src={classIconUrl(char.className)}
                                             alt={char.className}
@@ -319,7 +323,7 @@ export function Players(): React.ReactElement {
                                         >
                                             {char.name}
                                         </span>
-                                    </div>
+                                    </Link>
                                 </td>
                                 <td className="px-3 py-2.5 text-gray-400">
                                     {char.server}

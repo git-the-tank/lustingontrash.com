@@ -1,4 +1,5 @@
 import { useMemo, useCallback, type ReactElement, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useHashParams } from '../hooks/useHashParams';
 import { CLASS_COLORS, classIconUrl } from '../lib/classColors';
@@ -19,13 +20,11 @@ import {
     ROLE_KEYS,
     ROLE_LABEL,
     LP_THRESHOLD,
-    DEFAULT_DIFF_STR,
     DEFAULT_ROLE_STR,
     readFiltersFromHash,
-    encodeDifficulties,
     encodeRoles,
-    encodeEncounters,
     encodeSort,
+    decodeClass,
     setOrDelete,
     type RoleKey,
 } from './parseFilters';
@@ -206,10 +205,47 @@ function difficultyBandColor(difficulty: Difficulty): string {
     return 'bg-blue-950/40 text-blue-300';
 }
 
+// ---- Fight config types ----
+type FightCategory = 'PROGRESSION' | 'FARM' | 'IGNORED';
+type CategoryFilter = 'all' | 'prog' | 'overall' | 'farm';
+
+interface FightConfigResponse {
+    configs: Array<{
+        encounterId: number;
+        difficulty: Difficulty;
+        category: FightCategory;
+    }>;
+}
+
+function configKey(encounterId: number, difficulty: string): string {
+    return `${encounterId}:${difficulty}`;
+}
+
 // ---- Main component ----
 export function Parses(): ReactElement {
     const { data, isLoading, error } = useApi<ParsesResponse>('/parses');
+    const { data: fightConfigData } =
+        useApi<FightConfigResponse>('/fight-config');
     const [hashParams, updateHash] = useHashParams();
+
+    const categoryFilter = useMemo((): CategoryFilter => {
+        const val = hashParams.get('cat');
+        if (val === 'prog' || val === 'overall' || val === 'farm') return val;
+        return 'all';
+    }, [hashParams]);
+
+    const setCategoryFilter = useCallback(
+        (cat: CategoryFilter) => {
+            updateHash((p) => {
+                if (cat === 'all') {
+                    p.delete('cat');
+                } else {
+                    p.set('cat', cat);
+                }
+            });
+        },
+        [updateHash]
+    );
 
     // All encounter orders (for decode default)
     const allEncounterOrders = useMemo(
@@ -223,24 +259,12 @@ export function Parses(): ReactElement {
         [hashParams, allEncounterOrders]
     );
 
-    // ---- Filter setters (update hash) ----
-    const toggleDifficulty = useCallback(
-        (diff: Difficulty) => {
-            updateHash((p) => {
-                const current = new Set(filters.difficulties);
-                if (current.has(diff)) current.delete(diff);
-                else current.add(diff);
-                setOrDelete(
-                    p,
-                    'd',
-                    encodeDifficulties(current),
-                    DEFAULT_DIFF_STR
-                );
-            });
-        },
-        [filters.difficulties, updateHash]
+    const classFilter = useMemo(
+        () => decodeClass(hashParams.get('c')),
+        [hashParams]
     );
 
+    // ---- Filter setters (update hash) ----
     const toggleRole = useCallback(
         (role: RoleKey) => {
             updateHash((p) => {
@@ -252,33 +276,6 @@ export function Parses(): ReactElement {
         },
         [filters.roles, updateHash]
     );
-
-    const toggleEncounter = useCallback(
-        (order: number) => {
-            updateHash((p) => {
-                const current = new Set(filters.encounters);
-                if (current.has(order)) current.delete(order);
-                else current.add(order);
-                setOrDelete(
-                    p,
-                    'e',
-                    encodeEncounters(current, allEncounterOrders),
-                    null
-                );
-            });
-        },
-        [filters.encounters, allEncounterOrders, updateHash]
-    );
-
-    const toggleLowParticipation = useCallback(() => {
-        updateHash((p) => {
-            if (filters.hideLowParticipation) {
-                p.set('lp', '0');
-            } else {
-                p.delete('lp');
-            }
-        });
-    }, [filters.hideLowParticipation, updateHash]);
 
     const handleSort = useCallback(
         (key: string, defaultDir: 'asc' | 'desc' = 'desc') => {
@@ -303,20 +300,36 @@ export function Parses(): ReactElement {
             (a, b) => a.order - b.order
         );
 
-        // Filter rows by role
+        // Filter rows by role and optional class filter
         const filteredRows = data.rows.filter((r) => {
             const normalized = normalizeRole(r.character.role);
-            return normalized ? filters.roles.has(normalized) : false;
+            if (!normalized || !filters.roles.has(normalized)) return false;
+            if (classFilter && r.character.className !== classFilter)
+                return false;
+            return true;
         });
 
-        // Count participation per (encounter, difficulty)
+        // Count participation per (encounter, difficulty) across the
+        // FULL guild roster, not the filtered view. This prevents columns
+        // from disappearing when filtering by class or role.
         const participationCount = new Map<string, number>();
-        for (const row of filteredRows) {
+        for (const row of data.rows) {
             for (const parse of row.parses) {
                 const key = cellKey(parse.encounterId, parse.difficulty);
                 participationCount.set(
                     key,
                     (participationCount.get(key) ?? 0) + 1
+                );
+            }
+        }
+
+        // Build fight config lookup
+        const fightConfigMap = new Map<string, FightCategory>();
+        if (fightConfigData) {
+            for (const c of fightConfigData.configs) {
+                fightConfigMap.set(
+                    configKey(c.encounterId, c.difficulty),
+                    c.category
                 );
             }
         }
@@ -330,6 +343,22 @@ export function Parses(): ReactElement {
             if (!filters.difficulties.has(difficulty)) continue;
             for (const encounter of encounters) {
                 if (!filters.encounters.has(encounter.order)) continue;
+                // Category filter
+                if (categoryFilter !== 'all') {
+                    const cat =
+                        fightConfigMap.get(
+                            configKey(encounter.id, difficulty)
+                        ) ?? 'IGNORED';
+                    if (categoryFilter === 'prog' && cat !== 'PROGRESSION')
+                        continue;
+                    if (
+                        categoryFilter === 'overall' &&
+                        cat !== 'PROGRESSION' &&
+                        cat !== 'FARM'
+                    )
+                        continue;
+                    if (categoryFilter === 'farm' && cat !== 'FARM') continue;
+                }
                 const count =
                     participationCount.get(cellKey(encounter.id, difficulty)) ??
                     0;
@@ -383,7 +412,7 @@ export function Parses(): ReactElement {
         }
 
         return { encounters, visibleColumns, rows, lpHiddenCount };
-    }, [data, filters]);
+    }, [data, filters, classFilter, categoryFilter, fightConfigData]);
 
     // ---- Sort ----
     const sortedRows = useMemo(() => {
@@ -456,10 +485,7 @@ export function Parses(): ReactElement {
         );
     }
 
-    const { visibleColumns, rows, lpHiddenCount } = derived;
-    const allEncounters = [...data.encounters].sort(
-        (a, b) => a.order - b.order
-    );
+    const { visibleColumns, rows } = derived;
 
     // Difficulty group spans for header
     const difficultyGroups = DIFFICULTY_DISPLAY_ORDER.filter((d) =>
@@ -487,13 +513,24 @@ export function Parses(): ReactElement {
             </div>
 
             <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-                <FilterPillGroup<Difficulty>
-                    label="Difficulty"
-                    values={DIFFICULTY_DISPLAY_ORDER}
-                    selected={filters.difficulties}
-                    onToggle={toggleDifficulty}
-                    renderLabel={(d) => DIFFICULTY_LABEL[d]}
-                />
+                <div className="flex items-center gap-1.5">
+                    <span className="mr-1 text-xs text-gray-500">Category</span>
+                    {(
+                        [
+                            { key: 'prog', label: 'Prog' },
+                            { key: 'overall', label: 'Overall' },
+                            { key: 'farm', label: 'Farm' },
+                            { key: 'all', label: 'All' },
+                        ] as const
+                    ).map((opt) => (
+                        <FilterPill
+                            key={opt.key}
+                            label={opt.label}
+                            active={categoryFilter === opt.key}
+                            onClick={() => setCategoryFilter(opt.key)}
+                        />
+                    ))}
+                </div>
                 <FilterPillGroup<RoleKey>
                     label="Role"
                     values={ROLE_KEYS}
@@ -501,33 +538,18 @@ export function Parses(): ReactElement {
                     onToggle={toggleRole}
                     renderLabel={(r) => ROLE_LABEL[r]}
                 />
-            </div>
-
-            <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-                <div className="flex items-center gap-1.5">
-                    <span className="mr-1 text-xs text-gray-500">
-                        Encounters
-                    </span>
-                    {allEncounters.map((enc) => (
-                        <FilterPill
-                            key={enc.order}
-                            label={enc.short}
-                            active={filters.encounters.has(enc.order)}
-                            onClick={() => toggleEncounter(enc.order)}
-                            title={enc.name}
-                        />
-                    ))}
-                </div>
-                <FilterPill
-                    label={
-                        lpHiddenCount > 0
-                            ? `Hide <${LP_THRESHOLD} parses (${lpHiddenCount})`
-                            : `Hide <${LP_THRESHOLD} parses`
-                    }
-                    active={filters.hideLowParticipation}
-                    onClick={toggleLowParticipation}
-                    title={`Hide encounter×difficulty columns with fewer than ${LP_THRESHOLD} parses across the roster`}
-                />
+                {classFilter && (
+                    <FilterPill
+                        label={`Class: ${classFilter} ✕`}
+                        active={true}
+                        onClick={() =>
+                            updateHash((p) => {
+                                p.delete('c');
+                            })
+                        }
+                        title="Clear class filter"
+                    />
+                )}
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900/80 shadow-xl shadow-black/30">
@@ -617,7 +639,10 @@ export function Parses(): ReactElement {
                                 </td>
                                 {/* Player */}
                                 <td className="sticky left-10 z-10 border-b border-gray-800/50 bg-[inherit] py-2 pl-2 pr-3">
-                                    <div className="flex items-center gap-2.5">
+                                    <Link
+                                        to={`/character/${encodeURIComponent(row.character.name)}`}
+                                        className="flex items-center gap-2.5 hover:opacity-80"
+                                    >
                                         <img
                                             src={classIconUrl(
                                                 row.character.className
@@ -636,7 +661,7 @@ export function Parses(): ReactElement {
                                         >
                                             {row.character.name}
                                         </span>
-                                    </div>
+                                    </Link>
                                 </td>
                                 {/* Avg */}
                                 <td className="border-b border-gray-800/50 px-2 py-1.5 text-center">

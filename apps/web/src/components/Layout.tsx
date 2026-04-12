@@ -30,7 +30,7 @@ export function Layout(): React.ReactElement {
                             to="/"
                             className="text-sm text-gray-400 hover:text-white"
                         >
-                            Players
+                            Dashboard
                         </Link>
                         <Link
                             to="/parses"
@@ -38,6 +38,14 @@ export function Layout(): React.ReactElement {
                         >
                             Parses
                         </Link>
+                        {user?.role === 'ADMIN' && (
+                            <Link
+                                to="/admin/fights"
+                                className="text-sm text-gray-500 hover:text-amber-300"
+                            >
+                                Admin
+                            </Link>
+                        )}
                     </div>
                     {user && (
                         <div className="flex items-center gap-4">

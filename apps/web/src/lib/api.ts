@@ -35,6 +35,17 @@ export async function fetchApi<T>(
     });
 
     if (!response.ok) {
+        if (response.status === 401) {
+            // Save current location so we can return after login
+            sessionStorage.setItem(
+                'lot_return_url',
+                window.location.pathname + window.location.hash
+            );
+            setAuthToken(null);
+            window.location.replace('/app/login');
+            // Return a never-resolving promise to prevent further rendering
+            return new Promise<T>(() => {});
+        }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
 

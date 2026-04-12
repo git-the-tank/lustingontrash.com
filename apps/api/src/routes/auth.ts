@@ -163,7 +163,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             include: {
                 characters: {
                     where: { active: true },
-                    select: { name: true },
+                    select: { name: true, server: true },
                 },
             },
         });
@@ -177,10 +177,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         // check and issue a token with the existing role — don't log
         // users out over a transient API error.
         let newRole = user.role;
-        const charNames = user.characters.map((c) => c.name);
-
         try {
-            const membership = await checkMembershipByCharacters(charNames);
+            const membership = await checkMembershipByCharacters(
+                user.characters
+            );
 
             if (!membership.isMember) {
                 await deleteSession(session.id);
