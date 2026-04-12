@@ -14,7 +14,10 @@ import {
     validateSession,
     deleteSession,
 } from '../auth/session.js';
-import { verifyGuildMembership } from '../auth/membership.js';
+import {
+    verifyGuildMembership,
+    checkMembershipByCharacters,
+} from '../auth/membership.js';
 import { requireAuth } from '../auth/middleware.js';
 import { prisma } from '../db/index.js';
 
@@ -157,10 +160,55 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
         const user = await prisma.user.findUnique({
             where: { id: session.userId },
+            include: {
+                characters: {
+                    where: { active: true },
+                    select: { name: true },
+                },
+            },
         });
 
         if (!user) {
             return reply.code(401).send({ error: 'User not found' });
+        }
+
+        // Re-verify guild membership against cached roster.
+        // If the roster fetch fails (e.g. Battle.net outage), skip the
+        // check and issue a token with the existing role — don't log
+        // users out over a transient API error.
+        let newRole = user.role;
+        const charNames = user.characters.map((c) => c.name);
+
+        try {
+            const membership = await checkMembershipByCharacters(charNames);
+
+            if (!membership.isMember) {
+                await deleteSession(session.id);
+                const isProd = process.env.NODE_ENV === 'production';
+                reply.clearCookie(authConfig.cookieName, {
+                    path: '/api/auth',
+                    ...(isProd ? { domain: '.lustingontrash.com' } : {}),
+                });
+                return reply
+                    .code(403)
+                    .send({ error: 'No longer a guild member' });
+            }
+
+            // Update role if it changed (e.g. promoted/demoted)
+            newRole = membership.isAdmin ? 'ADMIN' : 'MEMBER';
+            if (user.role !== newRole) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                        role: newRole,
+                        guildMembershipVerifiedAt: new Date(),
+                    },
+                });
+            }
+        } catch {
+            request.log.warn(
+                'Guild roster check failed, skipping membership verification'
+            );
         }
 
         // Rotate refresh token
@@ -182,7 +230,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
         const jwt = await signJwt({
             sub: user.id,
-            role: user.role,
+            role: newRole,
             battletag: user.battletag,
         });
 
