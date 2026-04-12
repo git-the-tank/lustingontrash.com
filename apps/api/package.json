@@ -6,7 +6,7 @@
     "description": "Lusting on Trash API server",
     "scripts": {
         "dev": "tsx watch src/index.ts",
-        "build": "tsup src/index.ts --format esm --out-dir dist --sourcemap",
+        "build": "tsup",
         "start": "node dist/index.js",
         "typecheck": "tsc --noEmit",
         "db:generate": "prisma generate",
