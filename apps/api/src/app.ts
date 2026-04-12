@@ -7,6 +7,8 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerCharacterRoutes } from './routes/characters.js';
 import { registerParsesRoutes } from './routes/parses.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerFightConfigRoutes } from './routes/fightConfig.js';
+import { registerDashboardRoutes } from './routes/dashboard.js';
 
 export async function createApp(): Promise<FastifyInstance> {
     const app = Fastify({ logger: true });
@@ -43,6 +45,8 @@ export async function createApp(): Promise<FastifyInstance> {
     await app.register(registerAuthRoutes);
     await app.register(registerCharacterRoutes);
     await app.register(registerParsesRoutes);
+    await app.register(registerFightConfigRoutes);
+    await app.register(registerDashboardRoutes);
 
     return app;
 }

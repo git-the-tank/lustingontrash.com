@@ -176,4 +176,42 @@ export function setOrDelete(
     }
 }
 
+// ---- Class filter encode/decode ----
+// Single class name, URL-safe via encodeURIComponent.
+export function encodeClass(className: string | null): string | null {
+    if (!className) return null;
+    return className;
+}
+export function decodeClass(str: string | null): string | null {
+    if (!str) return null;
+    return str;
+}
+
+// ---- Build parseboard URL ----
+export type CategoryParam = 'prog' | 'overall' | 'farm';
+
+export function buildParseboardUrl(options: {
+    category?: CategoryParam;
+    roles?: Set<RoleKey>;
+    className?: string;
+}): string {
+    const params = new URLSearchParams();
+
+    if (options.category) {
+        params.set('cat', options.category);
+    }
+
+    if (options.roles) {
+        const encoded = encodeRoles(options.roles);
+        setOrDelete(params, 'r', encoded, DEFAULT_ROLE_STR);
+    }
+
+    if (options.className) {
+        params.set('c', options.className);
+    }
+
+    const hash = params.toString();
+    return hash ? `/parses#${hash}` : '/parses';
+}
+
 export { DEFAULT_DIFF_STR, DEFAULT_ROLE_STR };
