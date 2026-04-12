@@ -8,9 +8,6 @@ on:
 
 jobs:
   review:
-    if: >-
-      github.event.issue.pull_request &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,7 +27,7 @@ jobs:
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.issue.number }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
             You are triggered by a comment on a PR. Do exactly what the comment asks — nothing more.
 
@@ -41,13 +38,15 @@ jobs:
             Focus on (in priority order):
             1. Bugs and logic errors
             2. Security:
-               - Missing auth checks, data ownership leaks
+               - Missing auth checks (request.user / requireAuth), data ownership leaks
                - Secrets or credentials in committed code
-               - Raw SQL without parameterization
-               - WCL API key exposure
+               - Raw SQL ($queryRaw/$executeRaw) without parameterization
+               - WCL API key or Battle.net OAuth token exposure (logs, responses, client bundle)
+               - Unbounded REST inputs (missing pagination/limit, unchecked query params)
+               - Session/cookie handling on the OAuth callback path
             3. Suspicious dependency additions in package.json
-            4. N+1 queries or unbounded database fetches
-            5. Prisma schema ↔ API route mismatches
+            4. N+1 queries in Prisma routes (missing `include` / `select` batching)
+            5. schema.prisma ↔ Fastify route/shared types out of sync
 
             Skip:
             - Formatting, style, and type hygiene (CI and linters handle that)
