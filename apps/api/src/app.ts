@@ -5,6 +5,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCharacterRoutes } from './routes/characters.js';
+import { registerParsesRoutes } from './routes/parses.js';
 import { registerAuthRoutes } from './routes/auth.js';
 
 export async function createApp(): Promise<FastifyInstance> {
@@ -41,6 +42,7 @@ export async function createApp(): Promise<FastifyInstance> {
     await app.register(registerHealthRoutes);
     await app.register(registerAuthRoutes);
     await app.register(registerCharacterRoutes);
+    await app.register(registerParsesRoutes);
 
     return app;
 }

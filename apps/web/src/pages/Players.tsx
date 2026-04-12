@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { CLASS_COLORS, classIconUrl } from '../lib/classColors';
+import { FilterPill } from '../components/ranking/FilterPill';
+import { SortHeader, type SortDir } from '../components/ranking/SortHeader';
 
 interface Character {
     id: string;
@@ -18,7 +20,6 @@ const ROLES = ['Tank', 'Heal', 'Melee', 'Ranged'] as const;
 const RANKS = ['Main', 'Trial'] as const;
 
 type SortKey = 'name' | 'server' | 'role' | 'rank' | 'className';
-type SortDir = 'asc' | 'desc';
 
 const ROLE_ORDER: Record<string, number> = {
     Tank: 0,
@@ -43,58 +44,6 @@ function RankBadge({ rank }: { rank: string }): React.ReactElement {
         >
             {rank}
         </span>
-    );
-}
-
-function FilterPill({
-    label,
-    active,
-    onClick,
-}: {
-    label: string;
-    active: boolean;
-    onClick: () => void;
-}): React.ReactElement {
-    return (
-        <button
-            onClick={onClick}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                active
-                    ? 'bg-amber-900/60 text-amber-200 ring-1 ring-amber-700/50'
-                    : 'bg-gray-800/60 text-gray-400 ring-1 ring-gray-700/40 hover:bg-gray-800 hover:text-gray-300'
-            }`}
-        >
-            {label}
-        </button>
-    );
-}
-
-function SortHeader({
-    label,
-    sortKey,
-    currentSort,
-    currentDir,
-    onSort,
-}: {
-    label: string;
-    sortKey: SortKey;
-    currentSort: SortKey;
-    currentDir: SortDir;
-    onSort: (key: SortKey) => void;
-}): React.ReactElement {
-    const isActive = currentSort === sortKey;
-    return (
-        <button
-            onClick={() => onSort(sortKey)}
-            className="group flex items-center gap-1 font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-200"
-        >
-            {label}
-            <span
-                className={`text-[10px] ${isActive ? 'text-amber-400' : 'text-gray-600 group-hover:text-gray-500'}`}
-            >
-                {isActive ? (currentDir === 'asc' ? '▲' : '▼') : '▲'}
-            </span>
-        </button>
     );
 }
 

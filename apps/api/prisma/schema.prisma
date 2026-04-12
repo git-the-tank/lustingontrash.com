@@ -13,6 +13,12 @@ enum Role {
     ADMIN
 }
 
+enum Difficulty {
+    NORMAL
+    HEROIC
+    MYTHIC
+}
+
 model Guild {
     id         String      @id @default(cuid())
     wclId      Int         @unique
@@ -64,6 +70,7 @@ model Character {
     guild      Guild    @relation(fields: [guildId], references: [id])
     userId     String?
     user       User?    @relation(fields: [userId], references: [id])
+    parses     Parse[]
     createdAt  DateTime @default(now()) @db.Timestamptz(3)
     updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
@@ -71,4 +78,25 @@ model Character {
     @@index([guildId])
     @@index([active])
     @@index([userId])
+}
+
+model Parse {
+    id            String     @id @default(cuid())
+    characterId   String
+    character     Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+    encounterId   Int
+    difficulty    Difficulty
+    metric        String
+    bestPercent   Float
+    medianPercent Float?
+    bestAmount    Float?
+    bestSpec      String?
+    fastestKillMs Int?
+    killCount     Int        @default(0)
+    syncedAt      DateTime   @default(now()) @db.Timestamptz(3)
+    createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+    updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+
+    @@unique([characterId, encounterId, difficulty])
+    @@index([encounterId, difficulty])
 }

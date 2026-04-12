@@ -17,6 +17,12 @@ export function AuthGuard({
     }
 
     if (!isAuthenticated) {
+        // Save the current URL so we can restore it after OAuth completes.
+        // This preserves hash-param filter state (e.g., /parses#d=m&e=1.6).
+        sessionStorage.setItem(
+            'lot_return_url',
+            window.location.pathname + window.location.hash
+        );
         return <Navigate to="/login" replace />;
     }
 

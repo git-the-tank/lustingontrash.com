@@ -13,7 +13,8 @@
         "db:migrate": "prisma migrate dev",
         "db:migrate:deploy": "prisma migrate deploy",
         "db:studio": "prisma studio",
-        "db:sync": "tsx src/jobs/syncCharacters.ts"
+        "db:sync": "tsx src/jobs/syncCharacters.ts",
+        "db:sync:parses": "tsx src/jobs/syncParses.ts"
     },
     "dependencies": {
         "@fastify/cookie": "11.0.2",
