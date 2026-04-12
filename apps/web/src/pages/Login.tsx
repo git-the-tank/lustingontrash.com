@@ -1,7 +1,20 @@
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export function Login(): React.ReactElement {
-    const { login } = useAuth();
+    const { isLoading, isAuthenticated, login } = useAuth();
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-950 text-gray-400">
+                Loading...
+            </div>
+        );
+    }
+
+    if (isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-950">
