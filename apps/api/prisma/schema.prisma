@@ -25,6 +25,16 @@ enum FightCategory {
     IGNORED
 }
 
+enum SyncType {
+    ROSTER
+    PARSES
+}
+
+enum SyncStatus {
+    SUCCESS
+    FAILED
+}
+
 model Guild {
     id         String      @id @default(cuid())
     wclId      Int         @unique
@@ -71,6 +81,7 @@ model Character {
     server     String
     className  String
     role       String
+    roleOverride String?
     rank       String
     active     Boolean  @default(true)
     guildId    String
@@ -106,6 +117,21 @@ model Parse {
 
     @@unique([characterId, encounterId, difficulty])
     @@index([encounterId, difficulty])
+}
+
+model SyncLog {
+    id          String     @id @default(cuid())
+    type        SyncType
+    status      SyncStatus
+    startedAt   DateTime   @db.Timestamptz(3)
+    completedAt DateTime   @db.Timestamptz(3)
+    durationMs  Int
+    summary     String
+    details     Json?
+    error       String?
+    createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+
+    @@index([type, startedAt])
 }
 
 model FightConfig {

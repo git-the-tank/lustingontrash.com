@@ -40,7 +40,7 @@ export function Layout(): React.ReactElement {
                         </Link>
                         {user?.role === 'ADMIN' && (
                             <Link
-                                to="/admin/fights"
+                                to="/admin"
                                 className="text-sm text-gray-500 hover:text-amber-300"
                             >
                                 Admin

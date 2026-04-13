@@ -11,5 +11,6 @@ export interface User {
     id: string;
     battletag: string;
     role: 'MEMBER' | 'ADMIN';
+    guildRank: number | null;
     characters: UserCharacter[];
 }
