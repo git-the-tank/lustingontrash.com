@@ -28,7 +28,9 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 
 // ---- Defaults ----
 export const DEFAULT_DIFFICULTIES = new Set<Difficulty>(['MYTHIC', 'HEROIC']);
-export const DEFAULT_ROLES = new Set<RoleKey>(ROLE_KEYS);
+// Roles and categories default to empty: no filter applied, every pill reads
+// as inactive. Selecting a subset narrows the view.
+export const DEFAULT_ROLES = new Set<RoleKey>();
 export const DEFAULT_SORT_KEY = 'avg';
 export const DEFAULT_SORT_DIR: 'asc' | 'desc' = 'desc';
 export const DEFAULT_LP_HIDDEN = true;
@@ -88,7 +90,6 @@ export function decodeRoles(str: string): Set<RoleKey> {
             .filter(Boolean)
     );
 }
-const DEFAULT_ROLE_STR = encodeRoles(DEFAULT_ROLES);
 
 // ---- Encounter encode/decode ----
 // Encounters are identified by their order number. Dot-separated to
@@ -131,6 +132,32 @@ export function decodeSort(str: string | null): {
     return { key: key || DEFAULT_SORT_KEY, dir };
 }
 
+// ---- Category encode/decode ----
+export type CategoryKey = 'prog' | 'farm';
+export const CATEGORY_KEYS: readonly CategoryKey[] = ['prog', 'farm'];
+export const CATEGORY_LABEL: Record<CategoryKey, string> = {
+    prog: 'Prog',
+    farm: 'Farm',
+};
+
+const CAT_CHAR: Record<CategoryKey, string> = { prog: 'p', farm: 'f' };
+const CHAR_CAT: Record<string, CategoryKey> = { p: 'prog', f: 'farm' };
+
+export function encodeCategories(set: Set<CategoryKey>): string {
+    return CATEGORY_KEYS.filter((k) => set.has(k))
+        .map((k) => CAT_CHAR[k])
+        .join('');
+}
+export function decodeCategories(str: string | null): Set<CategoryKey> {
+    if (!str) return new Set();
+    return new Set(
+        str
+            .split('')
+            .map((c) => CHAR_CAT[c])
+            .filter(Boolean)
+    );
+}
+
 // ---- Helpers for reading/writing hash params ----
 export function readFiltersFromHash(
     params: URLSearchParams,
@@ -138,6 +165,7 @@ export function readFiltersFromHash(
 ): {
     difficulties: Set<Difficulty>;
     roles: Set<RoleKey>;
+    categories: Set<CategoryKey>;
     encounters: Set<number>;
     sortKey: string;
     sortDir: 'asc' | 'desc';
@@ -149,6 +177,7 @@ export function readFiltersFromHash(
     const roles = params.has('r')
         ? decodeRoles(params.get('r')!)
         : new Set(DEFAULT_ROLES);
+    const categories = decodeCategories(params.get('cat'));
     const encounters = decodeEncounters(params.get('e'), allEncounterOrders);
     const { key: sortKey, dir: sortDir } = decodeSort(params.get('s'));
     const hideLowParticipation = params.get('lp') !== '0';
@@ -156,6 +185,7 @@ export function readFiltersFromHash(
     return {
         difficulties,
         roles,
+        categories,
         encounters,
         sortKey,
         sortDir,
@@ -188,7 +218,10 @@ export function decodeClass(str: string | null): string | null {
 }
 
 // ---- Build parseboard URL ----
-export type CategoryParam = 'prog' | 'overall' | 'farm';
+// Narrowed to a single category ('prog' or 'farm'); pass undefined for
+// "show all". 'overall' is no longer a distinct bucket — empty selection
+// means every fight is shown.
+export type CategoryParam = CategoryKey;
 
 export function buildParseboardUrl(options: {
     category?: CategoryParam;
@@ -198,12 +231,11 @@ export function buildParseboardUrl(options: {
     const params = new URLSearchParams();
 
     if (options.category) {
-        params.set('cat', options.category);
+        params.set('cat', CAT_CHAR[options.category]);
     }
 
-    if (options.roles) {
-        const encoded = encodeRoles(options.roles);
-        setOrDelete(params, 'r', encoded, DEFAULT_ROLE_STR);
+    if (options.roles && options.roles.size > 0) {
+        params.set('r', encodeRoles(options.roles));
     }
 
     if (options.className) {
@@ -214,4 +246,4 @@ export function buildParseboardUrl(options: {
     return hash ? `/parses#${hash}` : '/parses';
 }
 
-export { DEFAULT_DIFF_STR, DEFAULT_ROLE_STR };
+export { DEFAULT_DIFF_STR };
