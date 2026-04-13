@@ -55,10 +55,15 @@ export async function verifyGuildMembership(
     const isAdmin = guildCharacters.some((c) =>
         guildConfig.adminRanks.includes(c.rank)
     );
+    const topRank =
+        guildCharacters.length === 0
+            ? null
+            : Math.min(...guildCharacters.map((c) => c.rank));
 
     return {
         isMember: guildCharacters.length > 0,
         isAdmin,
+        topRank,
         guildCharacters,
     };
 }
@@ -73,12 +78,13 @@ function slugifyServer(server: string): string {
  */
 export async function checkMembershipByCharacters(
     characters: Array<{ name: string; server: string }>
-): Promise<{ isMember: boolean; isAdmin: boolean }> {
+): Promise<{ isMember: boolean; isAdmin: boolean; topRank: number | null }> {
     const roster = await getCachedRoster();
     const rosterMap = buildRosterMap(roster);
 
     let isMember = false;
     let isAdmin = false;
+    let topRank: number | null = null;
 
     for (const char of characters) {
         const key = `${char.name.toLowerCase()}-${slugifyServer(char.server)}`;
@@ -89,8 +95,11 @@ export async function checkMembershipByCharacters(
             if (guildConfig.adminRanks.includes(rank)) {
                 isAdmin = true;
             }
+            if (topRank === null || rank < topRank) {
+                topRank = rank;
+            }
         }
     }
 
-    return { isMember, isAdmin };
+    return { isMember, isAdmin, topRank };
 }

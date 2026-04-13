@@ -123,6 +123,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             sub: user.id,
             role: user.role,
             battletag: user.battletag,
+            guildRank: membership.topRank,
         });
 
         const isProd = process.env.NODE_ENV === 'production';
@@ -177,6 +178,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         // check and issue a token with the existing role — don't log
         // users out over a transient API error.
         let newRole = user.role;
+        let guildRank: number | null = null;
         try {
             const membership = await checkMembershipByCharacters(
                 user.characters
@@ -196,6 +198,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
             // Update role if it changed (e.g. promoted/demoted)
             newRole = membership.isAdmin ? 'ADMIN' : 'MEMBER';
+            guildRank = membership.topRank;
             if (user.role !== newRole) {
                 await prisma.user.update({
                     where: { id: user.id },
@@ -232,6 +235,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             sub: user.id,
             role: newRole,
             battletag: user.battletag,
+            guildRank,
         });
 
         return { token: jwt };
@@ -286,6 +290,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
                 id: user.id,
                 battletag: user.battletag,
                 role: user.role,
+                guildRank: request.user!.guildRank ?? null,
                 characters: user.characters,
             };
         }

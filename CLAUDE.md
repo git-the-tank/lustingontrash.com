@@ -41,6 +41,8 @@ pnpm workspace monorepo. See per-package CLAUDE.md for details.
 - Use Neon dev branch for development (not production branch)
 - Prisma with `@prisma/adapter-pg` driver adapter
 - CUID primary keys, `@db.Timestamptz(3)` for timestamps
+- `pnpm run db:migrate` always prompts interactively for a migration name — always pipe it: `echo "migration_name" | pnpm run db:migrate`
+- Migration timeout: start at 30s; expand to 60s then 120s only if needed
 
 ## Git
 

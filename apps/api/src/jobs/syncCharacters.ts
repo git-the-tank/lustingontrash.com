@@ -21,6 +21,36 @@ export interface PreviewResult {
     characters: PreviewCharacter[];
 }
 
+export interface RosterDiffCharacter {
+    name: string;
+    className: string;
+    role: string;
+    rank: string;
+}
+
+export interface RosterDiffChange {
+    name: string;
+    from: string;
+    to: string;
+}
+
+export interface RosterDiff {
+    total: number;
+    added: RosterDiffCharacter[];
+    removed: RosterDiffCharacter[];
+    roleChanged: RosterDiffChange[];
+    classChanged: RosterDiffChange[];
+    rankChanged: RosterDiffChange[];
+}
+
+export interface SyncCharactersResult {
+    guild: string;
+    synced: number;
+    filtered: number;
+    deactivated: number;
+    diff: RosterDiff;
+}
+
 function toPreview(char: WowauditCharacter): PreviewCharacter {
     return {
         wowauditId: char.id,
@@ -53,12 +83,7 @@ export async function previewCharacters(): Promise<PreviewResult> {
     };
 }
 
-export async function syncCharacters(): Promise<{
-    guild: string;
-    synced: number;
-    filtered: number;
-    deactivated: number;
-}> {
+export async function syncCharacters(): Promise<SyncCharactersResult> {
     const roster = await fetchRoster();
     const { included, total } = filterRoster(roster);
 
@@ -77,9 +102,63 @@ export async function syncCharacters(): Promise<{
         },
     });
 
+    const existing = await prisma.character.findMany({
+        where: { guildId: guild.id },
+        select: {
+            wowauditId: true,
+            name: true,
+            className: true,
+            role: true,
+            rank: true,
+            active: true,
+        },
+    });
+    const prevByWowauditId = new Map(existing.map((c) => [c.wowauditId, c]));
+
+    const diff: RosterDiff = {
+        total: included.length,
+        added: [],
+        removed: [],
+        roleChanged: [],
+        classChanged: [],
+        rankChanged: [],
+    };
+
     const syncedIds: number[] = [];
 
     for (const char of included) {
+        const prev = prevByWowauditId.get(char.id);
+        if (!prev || prev.active === false) {
+            diff.added.push({
+                name: char.name,
+                className: char.class,
+                role: char.role,
+                rank: char.rank,
+            });
+        } else {
+            if (prev.role !== char.role) {
+                diff.roleChanged.push({
+                    name: char.name,
+                    from: prev.role,
+                    to: char.role,
+                });
+            }
+            if (prev.className !== char.class) {
+                diff.classChanged.push({
+                    name: char.name,
+                    from: prev.className,
+                    to: char.class,
+                });
+            }
+            if (prev.rank !== char.rank) {
+                diff.rankChanged.push({
+                    name: char.name,
+                    from: prev.rank,
+                    to: char.rank,
+                });
+            }
+        }
+
         await prisma.character.upsert({
             where: { wowauditId: char.id },
             update: {
@@ -104,6 +183,18 @@ export async function syncCharacters(): Promise<{
         syncedIds.push(char.id);
     }
 
+    const syncedIdSet = new Set(syncedIds);
+    for (const prev of existing) {
+        if (prev.active && !syncedIdSet.has(prev.wowauditId)) {
+            diff.removed.push({
+                name: prev.name,
+                className: prev.className,
+                role: prev.role,
+                rank: prev.rank,
+            });
+        }
+    }
+
     const deactivated = await prisma.character.updateMany({
         where: {
             guildId: guild.id,
@@ -118,5 +209,6 @@ export async function syncCharacters(): Promise<{
         synced: syncedIds.length,
         filtered: total - included.length,
         deactivated: deactivated.count,
+        diff,
     };
 }

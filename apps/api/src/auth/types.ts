@@ -54,11 +54,13 @@ export interface JwtPayload {
     sub: string;
     role: Role;
     battletag: string;
+    guildRank: number | null;
 }
 
 export interface MembershipResult {
     isMember: boolean;
     isAdmin: boolean;
+    topRank: number | null;
     guildCharacters: Array<{
         name: string;
         realmSlug: string;

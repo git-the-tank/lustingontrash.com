@@ -69,7 +69,13 @@ export interface SyncParsesResult {
 export async function syncParses(): Promise<SyncParsesResult> {
     const characters = await prisma.character.findMany({
         where: { active: true },
-        select: { id: true, name: true, server: true, role: true },
+        select: {
+            id: true,
+            name: true,
+            server: true,
+            role: true,
+            roleOverride: true,
+        },
         orderBy: [{ name: 'asc' }],
     });
 
@@ -90,7 +96,7 @@ export async function syncParses(): Promise<SyncParsesResult> {
     const charactersWithData = new Set<string>();
 
     for (const char of characters) {
-        const metric = metricForRole(char.role);
+        const metric = metricForRole(char.roleOverride ?? char.role);
         const slug = serverSlug(char.server);
 
         for (const difficulty of DIFFICULTIES) {
