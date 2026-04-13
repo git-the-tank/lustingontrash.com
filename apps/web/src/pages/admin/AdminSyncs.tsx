@@ -74,14 +74,15 @@ export function AdminSyncs(): React.ReactElement {
 }
 
 function useCountdown(target: Date | null): string | null {
+    const targetMs = target?.getTime() ?? null;
     const [, tick] = useState(0);
     useEffect(() => {
-        if (!target) return;
+        if (targetMs === null) return;
         const id = setInterval(() => tick((t) => t + 1), 1000);
         return () => clearInterval(id);
-    }, [target]);
-    if (!target) return null;
-    const ms = target.getTime() - Date.now();
+    }, [targetMs]);
+    if (targetMs === null) return null;
+    const ms = targetMs - Date.now();
     if (ms <= 0) return null;
     const totalSeconds = Math.ceil(ms / 1000);
     const hours = Math.floor(totalSeconds / 3600);
@@ -105,9 +106,12 @@ function RosterSyncCard({
 }: {
     isUngated: boolean;
 }): React.ReactElement {
-    const { data: logData, refetch } = useApi<SyncLogResponse>(
-        '/sync/log?type=ROSTER&limit=20'
-    );
+    const {
+        data: logData,
+        isLoading: logsLoading,
+        error: logsError,
+        refetch,
+    } = useApi<SyncLogResponse>('/sync/log?type=ROSTER&limit=20');
     const [running, setRunning] = useState(false);
     const [result, setResult] = useState<CharacterSyncResult | null>(null);
     const [completedAt, setCompletedAt] = useState<Date | null>(null);
@@ -140,7 +144,7 @@ function RosterSyncCard({
         }
     }
 
-    const lastSynced = logData?.logs[0]?.startedAt ?? null;
+    const lastSynced = lastSuccess?.startedAt ?? null;
 
     return (
         <section className="rounded-lg border border-gray-800 bg-gray-900/40">
@@ -197,7 +201,12 @@ function RosterSyncCard({
                     </>
                 )}
             </div>
-            <LogTable logs={logData?.logs ?? []} kind="ROSTER" />
+            <LogTable
+                logs={logData?.logs ?? []}
+                kind="ROSTER"
+                isLoading={logsLoading}
+                error={logsError}
+            />
         </section>
     );
 }
@@ -207,9 +216,12 @@ function ParseSyncCard({
 }: {
     isUngated: boolean;
 }): React.ReactElement {
-    const { data: logData, refetch } = useApi<SyncLogResponse>(
-        '/sync/log?type=PARSES&limit=20'
-    );
+    const {
+        data: logData,
+        isLoading: logsLoading,
+        error: logsError,
+        refetch,
+    } = useApi<SyncLogResponse>('/sync/log?type=PARSES&limit=20');
     const [running, setRunning] = useState(false);
     const [result, setResult] = useState<ParseSyncResult | null>(null);
     const [completedAt, setCompletedAt] = useState<Date | null>(null);
@@ -241,7 +253,7 @@ function ParseSyncCard({
         }
     }
 
-    const lastSynced = logData?.logs[0]?.startedAt ?? null;
+    const lastSynced = lastSuccess?.startedAt ?? null;
 
     return (
         <section className="rounded-lg border border-gray-800 bg-gray-900/40">
@@ -317,7 +329,12 @@ function ParseSyncCard({
                     </>
                 )}
             </div>
-            <LogTable logs={logData?.logs ?? []} kind="PARSES" />
+            <LogTable
+                logs={logData?.logs ?? []}
+                kind="PARSES"
+                isLoading={logsLoading}
+                error={logsError}
+            />
         </section>
     );
 }
@@ -378,9 +395,13 @@ function Stat({
 function LogTable({
     logs,
     kind,
+    isLoading,
+    error,
 }: {
     logs: SyncLogEntry[];
     kind: 'ROSTER' | 'PARSES';
+    isLoading: boolean;
+    error: string | null;
 }): React.ReactElement {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -398,7 +419,13 @@ function LogTable({
             <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Recent runs
             </div>
-            {logs.length === 0 ? (
+            {isLoading ? (
+                <div className="px-6 pb-6 text-sm text-gray-500">Loading…</div>
+            ) : error ? (
+                <div className="px-6 pb-6 text-sm text-red-400">
+                    Failed to load history: {error}
+                </div>
+            ) : logs.length === 0 ? (
                 <div className="px-6 pb-6 text-sm text-gray-500">
                     No runs yet.
                 </div>
