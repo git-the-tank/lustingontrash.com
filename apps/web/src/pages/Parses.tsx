@@ -1,4 +1,12 @@
-import { useMemo, useCallback, type ReactElement, type ReactNode } from 'react';
+import {
+    useEffect,
+    useMemo,
+    useCallback,
+    useRef,
+    useState,
+    type ReactElement,
+    type ReactNode,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useHashParams } from '../hooks/useHashParams';
@@ -8,6 +16,8 @@ import { FilterPillGroup } from '../components/ranking/FilterPillGroup';
 import { FilterPill } from '../components/ranking/FilterPill';
 import { SortHeader } from '../components/ranking/SortHeader';
 import { MetricCell } from '../components/ranking/MetricCell';
+import { ParseQuadrant, type QuadrantRow } from '../components/ParseQuadrant';
+import { iqr } from '../lib/stats';
 import {
     DIFFICULTY_WCL_ID,
     type Difficulty,
@@ -19,14 +29,17 @@ import {
     DIFFICULTY_LABEL,
     ROLE_KEYS,
     ROLE_LABEL,
+    CATEGORY_KEYS,
+    CATEGORY_LABEL,
     LP_THRESHOLD,
-    DEFAULT_ROLE_STR,
     readFiltersFromHash,
     encodeRoles,
+    encodeCategories,
     encodeSort,
     decodeClass,
     setOrDelete,
     type RoleKey,
+    type CategoryKey,
 } from './parseFilters';
 
 // ---- API response types ----
@@ -187,6 +200,7 @@ interface DerivedRow {
     parseByKey: Map<string, ParseData>;
     avgPercentile: number | null;
     parsedCount: number;
+    spread: number | null;
 }
 
 function cellKey(encounterId: number, difficulty: Difficulty): string {
@@ -207,7 +221,6 @@ function difficultyBandColor(difficulty: Difficulty): string {
 
 // ---- Fight config types ----
 type FightCategory = 'PROGRESSION' | 'FARM' | 'IGNORED';
-type CategoryFilter = 'all' | 'prog' | 'overall' | 'farm';
 
 interface FightConfigResponse {
     configs: Array<{
@@ -228,24 +241,22 @@ export function Parses(): ReactElement {
         useApi<FightConfigResponse>('/fight-config');
     const [hashParams, updateHash] = useHashParams();
 
-    const categoryFilter = useMemo((): CategoryFilter => {
-        const val = hashParams.get('cat');
-        if (val === 'prog' || val === 'overall' || val === 'farm') return val;
-        return 'all';
-    }, [hashParams]);
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+    const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
-    const setCategoryFilter = useCallback(
-        (cat: CategoryFilter) => {
-            updateHash((p) => {
-                if (cat === 'all') {
-                    p.delete('cat');
-                } else {
-                    p.set('cat', cat);
-                }
-            });
-        },
-        [updateHash]
-    );
+    useEffect(() => {
+        if (!highlightId) return;
+        const el = rowRefs.current.get(highlightId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        const t = setTimeout(() => setHighlightId(null), 2500);
+        return () => clearTimeout(t);
+    }, [highlightId]);
+
+    const handleQuadrantSelect = useCallback((id: string) => {
+        setHighlightId(id);
+    }, []);
 
     // All encounter orders (for decode default)
     const allEncounterOrders = useMemo(
@@ -265,16 +276,50 @@ export function Parses(): ReactElement {
     );
 
     // ---- Filter setters (update hash) ----
+    // Show-all states (empty OR full) render with every pill active. From
+    // show-all, clicking a pill *narrows* to just that pill. From a narrowed
+    // state, clicking toggles membership; re-selecting everything collapses
+    // back to the empty/show-all state so the URL stays short.
     const toggleRole = useCallback(
         (role: RoleKey) => {
             updateHash((p) => {
-                const current = new Set(filters.roles);
-                if (current.has(role)) current.delete(role);
-                else current.add(role);
-                setOrDelete(p, 'r', encodeRoles(current), DEFAULT_ROLE_STR);
+                const current = filters.roles;
+                const showingAll =
+                    current.size === 0 || current.size === ROLE_KEYS.length;
+                let next: Set<RoleKey>;
+                if (showingAll) {
+                    next = new Set([role]);
+                } else {
+                    next = new Set(current);
+                    if (next.has(role)) next.delete(role);
+                    else next.add(role);
+                    if (next.size === ROLE_KEYS.length) next = new Set();
+                }
+                setOrDelete(p, 'r', encodeRoles(next), '');
             });
         },
         [filters.roles, updateHash]
+    );
+
+    const toggleCategory = useCallback(
+        (cat: CategoryKey) => {
+            updateHash((p) => {
+                const current = filters.categories;
+                const showingAll =
+                    current.size === 0 || current.size === CATEGORY_KEYS.length;
+                let next: Set<CategoryKey>;
+                if (showingAll) {
+                    next = new Set([cat]);
+                } else {
+                    next = new Set(current);
+                    if (next.has(cat)) next.delete(cat);
+                    else next.add(cat);
+                    if (next.size === CATEGORY_KEYS.length) next = new Set();
+                }
+                setOrDelete(p, 'cat', encodeCategories(next), '');
+            });
+        },
+        [filters.categories, updateHash]
     );
 
     const handleSort = useCallback(
@@ -300,10 +345,15 @@ export function Parses(): ReactElement {
             (a, b) => a.order - b.order
         );
 
-        // Filter rows by role and optional class filter
+        // Filter rows by role and optional class filter. Empty or full role
+        // set means "no role filter".
+        const roleFilterActive =
+            filters.roles.size > 0 && filters.roles.size < ROLE_KEYS.length;
         const filteredRows = data.rows.filter((r) => {
             const normalized = normalizeRole(r.character.role);
-            if (!normalized || !filters.roles.has(normalized)) return false;
+            if (!normalized) return false;
+            if (roleFilterActive && !filters.roles.has(normalized))
+                return false;
             if (classFilter && r.character.className !== classFilter)
                 return false;
             return true;
@@ -334,7 +384,12 @@ export function Parses(): ReactElement {
             }
         }
 
-        // Build visible columns
+        // Build visible columns. Empty or full category set = show everything,
+        // including IGNORED fights. A single-category selection filters to
+        // that bucket.
+        const categoryFilterActive =
+            filters.categories.size > 0 &&
+            filters.categories.size < CATEGORY_KEYS.length;
         const visibleColumns: {
             encounter: Encounter;
             difficulty: Difficulty;
@@ -343,21 +398,16 @@ export function Parses(): ReactElement {
             if (!filters.difficulties.has(difficulty)) continue;
             for (const encounter of encounters) {
                 if (!filters.encounters.has(encounter.order)) continue;
-                // Category filter
-                if (categoryFilter !== 'all') {
+                if (categoryFilterActive) {
                     const cat =
                         fightConfigMap.get(
                             configKey(encounter.id, difficulty)
                         ) ?? 'IGNORED';
-                    if (categoryFilter === 'prog' && cat !== 'PROGRESSION')
+                    const wantProg = filters.categories.has('prog');
+                    const wantFarm = filters.categories.has('farm');
+                    if (wantProg && !wantFarm && cat !== 'PROGRESSION')
                         continue;
-                    if (
-                        categoryFilter === 'overall' &&
-                        cat !== 'PROGRESSION' &&
-                        cat !== 'FARM'
-                    )
-                        continue;
-                    if (categoryFilter === 'farm' && cat !== 'FARM') continue;
+                    if (wantFarm && !wantProg && cat !== 'FARM') continue;
                 }
                 const count =
                     participationCount.get(cellKey(encounter.id, difficulty)) ??
@@ -378,20 +428,24 @@ export function Parses(): ReactElement {
 
             let sum = 0;
             let kills = 0;
+            const bestPercents: number[] = [];
             for (const { encounter, difficulty } of visibleColumns) {
                 const parse = parseByKey.get(cellKey(encounter.id, difficulty));
                 if (parse) {
                     sum += parse.bestPercent;
                     kills += 1;
+                    bestPercents.push(parse.bestPercent);
                 }
             }
             const avgPercentile = kills > 0 ? sum / kills : null;
+            const spread = iqr(bestPercents);
 
             return {
                 character: r.character,
                 parseByKey,
                 avgPercentile,
                 parsedCount: kills,
+                spread,
             };
         });
 
@@ -412,7 +466,7 @@ export function Parses(): ReactElement {
         }
 
         return { encounters, visibleColumns, rows, lpHiddenCount };
-    }, [data, filters, classFilter, categoryFilter, fightConfigData]);
+    }, [data, filters, classFilter, fightConfigData]);
 
     // ---- Sort ----
     const sortedRows = useMemo(() => {
@@ -513,24 +567,13 @@ export function Parses(): ReactElement {
             </div>
 
             <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-                <div className="flex items-center gap-1.5">
-                    <span className="mr-1 text-xs text-gray-500">Category</span>
-                    {(
-                        [
-                            { key: 'prog', label: 'Prog' },
-                            { key: 'overall', label: 'Overall' },
-                            { key: 'farm', label: 'Farm' },
-                            { key: 'all', label: 'All' },
-                        ] as const
-                    ).map((opt) => (
-                        <FilterPill
-                            key={opt.key}
-                            label={opt.label}
-                            active={categoryFilter === opt.key}
-                            onClick={() => setCategoryFilter(opt.key)}
-                        />
-                    ))}
-                </div>
+                <FilterPillGroup<CategoryKey>
+                    label="Category"
+                    values={CATEGORY_KEYS}
+                    selected={filters.categories}
+                    onToggle={toggleCategory}
+                    renderLabel={(c) => CATEGORY_LABEL[c]}
+                />
                 <FilterPillGroup<RoleKey>
                     label="Role"
                     values={ROLE_KEYS}
@@ -550,6 +593,14 @@ export function Parses(): ReactElement {
                         title="Clear class filter"
                     />
                 )}
+            </div>
+
+            <div className="mb-6">
+                <ParseQuadrant
+                    rows={buildQuadrantRows(sortedRows, visibleColumns.length)}
+                    skippedCount={countQuadrantSkipped(sortedRows)}
+                    onSelect={handleQuadrantSelect}
+                />
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900/80 shadow-xl shadow-black/30">
@@ -627,10 +678,24 @@ export function Parses(): ReactElement {
                         {sortedRows.map((row, i) => (
                             <tr
                                 key={row.character.id}
+                                ref={(el) => {
+                                    if (el) {
+                                        rowRefs.current.set(
+                                            row.character.id,
+                                            el
+                                        );
+                                    } else {
+                                        rowRefs.current.delete(
+                                            row.character.id
+                                        );
+                                    }
+                                }}
                                 className={`transition-colors hover:bg-gray-800/40 ${
-                                    i % 2 === 0
-                                        ? 'bg-gray-900/30'
-                                        : 'bg-gray-950/30'
+                                    highlightId === row.character.id
+                                        ? 'bg-amber-900/30 ring-1 ring-amber-600/40'
+                                        : i % 2 === 0
+                                          ? 'bg-gray-900/30'
+                                          : 'bg-gray-950/30'
                                 }`}
                             >
                                 {/* Rank */}
@@ -736,4 +801,33 @@ export function Parses(): ReactElement {
             </div>
         </div>
     );
+}
+
+function buildQuadrantRows(
+    rows: DerivedRow[],
+    totalColumns: number
+): QuadrantRow[] {
+    const out: QuadrantRow[] = [];
+    for (const r of rows) {
+        if (r.avgPercentile == null || r.spread == null) continue;
+        out.push({
+            id: r.character.id,
+            name: r.character.name,
+            className: r.character.className,
+            role: r.character.role,
+            avgPercentile: r.avgPercentile,
+            spread: r.spread,
+            parsedCount: r.parsedCount,
+            totalColumns,
+        });
+    }
+    return out;
+}
+
+function countQuadrantSkipped(rows: DerivedRow[]): number {
+    let n = 0;
+    for (const r of rows) {
+        if (r.avgPercentile == null || r.spread == null) n += 1;
+    }
+    return n;
 }

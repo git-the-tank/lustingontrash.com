@@ -4,7 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { CLASS_COLORS, classIconUrl } from '../lib/classColors';
 import { WOW_QUALITY } from '../lib/colorSchemes/wowQuality';
 import { MetricCell } from '../components/ranking/MetricCell';
-import { FilterPill } from '../components/ranking/FilterPill';
+import { FilterPillGroup } from '../components/ranking/FilterPillGroup';
 import {
     ENCOUNTERS,
     DIFFICULTIES,
@@ -13,8 +13,10 @@ import {
 } from '@lot/shared/encounters.config.js';
 import {
     buildParseboardUrl,
+    CATEGORY_KEYS,
+    CATEGORY_LABEL,
     type RoleKey,
-    type CategoryParam,
+    type CategoryKey,
 } from './parseFilters';
 
 // ---- API types ----
@@ -74,7 +76,7 @@ function roleToFilterRoles(role: string): Set<RoleKey> {
     return new Set(['Melee', 'Ranged']);
 }
 
-const CATEGORY_LABEL: Record<FightCategory, string> = {
+const FIGHT_CATEGORY_LABEL: Record<FightCategory, string> = {
     PROGRESSION: 'Prog',
     FARM: 'Farm',
     IGNORED: 'Ignored',
@@ -185,9 +187,8 @@ function CharacterPanel({
     const roleRoles = roleToFilterRoles(character.role);
 
     const progUrl = buildParseboardUrl({ category: 'prog' });
-    const overallUrl = buildParseboardUrl({ category: 'overall' });
 
-    function classRankUrl(bucket: CategoryParam): string {
+    function classRankUrl(bucket: CategoryKey): string {
         return buildParseboardUrl({
             category: bucket,
             roles: roleRoles,
@@ -195,26 +196,31 @@ function CharacterPanel({
         });
     }
 
-    function roleRankUrl(bucket: CategoryParam): string {
+    function roleRankUrl(bucket: CategoryKey): string {
         return buildParseboardUrl({
             category: bucket,
             roles: roleRoles,
         });
     }
 
-    const [fightFilter, setFightFilter] = useState<
-        'all' | 'prog' | 'overall' | 'farm'
-    >('overall');
+    // Local fight-breakdown filter — same "empty or full set = show all" rule
+    // as the parseboard. Empty is the initial state so every fight is visible.
+    const [fightFilter, setFightFilter] = useState<Set<CategoryKey>>(
+        () => new Set()
+    );
 
-    const FIGHT_FILTERS: Array<{
-        key: 'all' | 'prog' | 'overall' | 'farm';
-        label: string;
-    }> = [
-        { key: 'prog', label: 'Prog' },
-        { key: 'overall', label: 'Overall' },
-        { key: 'farm', label: 'Farm' },
-        { key: 'all', label: 'All' },
-    ];
+    const toggleFightFilter = (cat: CategoryKey): void => {
+        setFightFilter((prev) => {
+            const showingAll =
+                prev.size === 0 || prev.size === CATEGORY_KEYS.length;
+            if (showingAll) return new Set([cat]);
+            const next = new Set(prev);
+            if (next.has(cat)) next.delete(cat);
+            else next.add(cat);
+            if (next.size === CATEGORY_KEYS.length) return new Set();
+            return next;
+        });
+    };
 
     const CATEGORY_PRIORITY: Record<FightCategory, number> = {
         PROGRESSION: 0,
@@ -229,6 +235,10 @@ function CharacterPanel({
     };
 
     const filteredFights = useMemo(() => {
+        const active =
+            fightFilter.size > 0 && fightFilter.size < CATEGORY_KEYS.length;
+        const wantProg = fightFilter.has('prog');
+        const wantFarm = fightFilter.has('farm');
         const result: Array<{ fight: FightData; encounter: Encounter }> = [];
         for (const diff of DIFFICULTIES) {
             for (const enc of ENCOUNTERS) {
@@ -236,16 +246,16 @@ function CharacterPanel({
                     (f) => f.encounterId === enc.id && f.difficulty === diff
                 );
                 if (!fight) continue;
-                if (fightFilter === 'prog' && fight.category !== 'PROGRESSION')
-                    continue;
-                if (
-                    fightFilter === 'overall' &&
-                    fight.category !== 'PROGRESSION' &&
-                    fight.category !== 'FARM'
-                )
-                    continue;
-                if (fightFilter === 'farm' && fight.category !== 'FARM')
-                    continue;
+                if (active) {
+                    if (
+                        wantProg &&
+                        !wantFarm &&
+                        fight.category !== 'PROGRESSION'
+                    )
+                        continue;
+                    if (wantFarm && !wantProg && fight.category !== 'FARM')
+                        continue;
+                }
                 result.push({ fight, encounter: enc });
             }
         }
@@ -295,13 +305,6 @@ function CharacterPanel({
                     classRankUrl={classRankUrl('prog')}
                     roleRankUrl={roleRankUrl('prog')}
                 />
-                <BucketCard
-                    label="Overall"
-                    bucket={character.overall}
-                    scoreUrl={overallUrl}
-                    classRankUrl={classRankUrl('overall')}
-                    roleRankUrl={roleRankUrl('overall')}
-                />
             </div>
 
             {/* Fight breakdown */}
@@ -310,16 +313,12 @@ function CharacterPanel({
                     <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
                         Fight Breakdown
                     </span>
-                    <div className="flex gap-1">
-                        {FIGHT_FILTERS.map((f) => (
-                            <FilterPill
-                                key={f.key}
-                                label={f.label}
-                                active={fightFilter === f.key}
-                                onClick={() => setFightFilter(f.key)}
-                            />
-                        ))}
-                    </div>
+                    <FilterPillGroup<CategoryKey>
+                        values={CATEGORY_KEYS}
+                        selected={fightFilter}
+                        onToggle={toggleFightFilter}
+                        renderLabel={(c) => CATEGORY_LABEL[c]}
+                    />
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900/80">
                     <table className="w-full text-left text-sm">
@@ -361,7 +360,11 @@ function CharacterPanel({
                                         <span
                                             className={`text-xs font-medium ${CATEGORY_TEXT_COLOR[fight.category]}`}
                                         >
-                                            {CATEGORY_LABEL[fight.category]}
+                                            {
+                                                FIGHT_CATEGORY_LABEL[
+                                                    fight.category
+                                                ]
+                                            }
                                         </span>
                                     </td>
                                     <td className="px-3 py-1.5 text-center">

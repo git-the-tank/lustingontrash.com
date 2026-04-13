@@ -16,6 +16,10 @@ export function FilterPillGroup<T extends string>({
     onToggle: (value: T) => void;
     renderLabel?: (value: T) => string;
 }): ReactElement {
+    // "Show all" state: no pills selected OR every pill selected. Both render
+    // as if every pill is active (everything is included). Clicking a pill
+    // from this state narrows to just that pill — handled by the parent.
+    const isShowAll = selected.size === 0 || selected.size === values.length;
     return (
         <div className="flex items-center gap-1.5">
             {label && (
@@ -25,7 +29,7 @@ export function FilterPillGroup<T extends string>({
                 <FilterPill
                     key={value}
                     label={renderLabel ? renderLabel(value) : value}
-                    active={selected.has(value)}
+                    active={isShowAll || selected.has(value)}
                     onClick={() => onToggle(value)}
                 />
             ))}
