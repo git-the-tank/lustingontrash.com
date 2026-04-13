@@ -44,6 +44,17 @@ enum DeathClassification {
     RESET_ROLE_HOLDOUT
 }
 
+enum SyncType {
+    ROSTER
+    PARSES
+    REPORTS
+}
+
+enum SyncStatus {
+    SUCCESS
+    FAILED
+}
+
 enum RawPayloadSource {
     REPORT_SPINE
     MASTER_DATA
@@ -101,8 +112,9 @@ model Character {
     name       String
     server     String
     className  String
-    role       String
-    rank       String
+    role         String
+    roleOverride String?
+    rank         String
     active     Boolean  @default(true)
     guildId    String
     guild      Guild    @relation(fields: [guildId], references: [id])
@@ -154,6 +166,21 @@ model FightConfig {
 
     @@unique([guildId, encounterId, difficulty])
     @@index([guildId])
+}
+
+model SyncLog {
+    id          String     @id @default(cuid())
+    type        SyncType
+    status      SyncStatus
+    startedAt   DateTime   @db.Timestamptz(3)
+    completedAt DateTime   @db.Timestamptz(3)
+    durationMs  Int
+    summary     String
+    details     Json?
+    error       String?
+    createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+
+    @@index([type, startedAt])
 }
 
 model Report {

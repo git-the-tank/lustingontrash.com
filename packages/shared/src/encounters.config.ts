@@ -1,6 +1,9 @@
 // Midnight Season 1 raid tier — 9 encounters.
 // Released 2026-03-17.
 //
+// MIDNIGHT_S1_START_MS is the hard floor for report discovery watermarks.
+export const MIDNIGHT_S1_START_MS = new Date('2026-03-17T15:00:00Z').getTime();
+//
 // WCL bundles all three in-game raid locations (The Voidspire, The Dreamrift,
 // March on Quel'Danas) under a single zone: id 46, "VS / DR / MQD". The
 // `raid` field below preserves the logical grouping for UI column headers.

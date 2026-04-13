@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Players } from './pages/Players';
 import { Parses } from './pages/Parses';
 import { AdminFights } from './pages/AdminFights';
+import { AdminSyncs } from './pages/AdminSyncs';
 import { Login } from './pages/Login';
 import { AccessDenied } from './pages/AccessDenied';
 
@@ -35,6 +36,14 @@ export function App(): React.ReactElement {
                         element={
                             <AdminGuard>
                                 <AdminFights />
+                            </AdminGuard>
+                        }
+                    />
+                    <Route
+                        path="/admin/syncs"
+                        element={
+                            <AdminGuard>
+                                <AdminSyncs />
                             </AdminGuard>
                         }
                     />

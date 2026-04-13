@@ -39,12 +39,20 @@ export function Layout(): React.ReactElement {
                             Parses
                         </Link>
                         {user?.role === 'ADMIN' && (
-                            <Link
-                                to="/admin/fights"
-                                className="text-sm text-gray-500 hover:text-amber-300"
-                            >
-                                Admin
-                            </Link>
+                            <>
+                                <Link
+                                    to="/admin/fights"
+                                    className="text-sm text-gray-500 hover:text-amber-300"
+                                >
+                                    Fights
+                                </Link>
+                                <Link
+                                    to="/admin/syncs"
+                                    className="text-sm text-gray-500 hover:text-amber-300"
+                                >
+                                    Syncs
+                                </Link>
+                            </>
                         )}
                     </div>
                     {user && (
