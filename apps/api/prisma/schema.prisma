@@ -25,6 +25,36 @@ enum FightCategory {
     IGNORED
 }
 
+enum ReportState {
+    NEW
+    LIVE
+    FINAL
+}
+
+enum EffectiveProgEndSource {
+    HEURISTIC
+    OVERRIDE
+    NONE
+}
+
+enum DeathClassification {
+    PROG_RELEVANT
+    WIPE_COLLAPSE
+    POST_WIPE_EXIT
+    RESET_ROLE_HOLDOUT
+}
+
+enum RawPayloadSource {
+    REPORT_SPINE
+    MASTER_DATA
+    TABLE_DEATHS
+    TABLE_DAMAGE_TAKEN
+    TABLE_CASTS
+    TABLE_INTERRUPTS
+    TABLE_DISPELS
+    TABLE_SUMMARY
+}
+
 model Guild {
     id         String      @id @default(cuid())
     wclId      Int         @unique
@@ -33,6 +63,7 @@ model Guild {
     region     String
     characters   Character[]
     fightConfigs FightConfig[]
+    reports      Report[]
     createdAt    DateTime      @default(now()) @db.Timestamptz(3)
     updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
 
@@ -77,8 +108,10 @@ model Character {
     guild      Guild    @relation(fields: [guildId], references: [id])
     userId     String?
     user       User?    @relation(fields: [userId], references: [id])
-    parses     Parse[]
-    createdAt  DateTime @default(now()) @db.Timestamptz(3)
+    parses            Parse[]
+    actors            Actor[]
+    playerFightFacts  PlayerFightFact[]
+    createdAt         DateTime @default(now()) @db.Timestamptz(3)
     updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
     @@unique([name, server])
@@ -115,9 +148,135 @@ model FightConfig {
     encounterId Int
     difficulty  Difficulty
     category    FightCategory @default(IGNORED)
+    config      Json?
     createdAt   DateTime      @default(now()) @db.Timestamptz(3)
     updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
 
     @@unique([guildId, encounterId, difficulty])
     @@index([guildId])
+}
+
+model Report {
+    id              String      @id @default(cuid())
+    code            String      @unique
+    guildId         String
+    guild           Guild       @relation(fields: [guildId], references: [id], onDelete: Restrict)
+    title           String?
+    zoneId          Int?
+    startTime       DateTime    @db.Timestamptz(3)
+    endTime         DateTime    @db.Timestamptz(3)
+    state           ReportState @default(NEW)
+    lastFetchedAt   DateTime?   @db.Timestamptz(3)
+    lastFightSeenAt DateTime?   @db.Timestamptz(3)
+    finalizedAt     DateTime?   @db.Timestamptz(3)
+    fights          Fight[]
+    actors          Actor[]
+    createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+    updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+
+    @@index([guildId, startTime])
+    @@index([state])
+}
+
+model Fight {
+    id                             String                 @id @default(cuid())
+    reportId                       String
+    report                         Report                 @relation(fields: [reportId], references: [id], onDelete: Cascade)
+    fightId                        Int
+    encounterId                    Int
+    difficulty                     Difficulty
+    name                           String?
+    kill                           Boolean                @default(false)
+    startTime                      Int
+    endTime                        Int
+    bossPercentage                 Float?
+    fightPercentage                Float?
+    phaseTransitions               Json?
+    effectiveProgEndMs             Int?
+    effectiveProgEndSource         EffectiveProgEndSource @default(NONE)
+    effectiveProgEndOverrideBy     String?
+    effectiveProgEndOverrideAt     DateTime?              @db.Timestamptz(3)
+    effectiveProgEndOverrideVersion Int                   @default(0)
+    playerFightFacts               PlayerFightFact[]
+    createdAt                      DateTime               @default(now()) @db.Timestamptz(3)
+    updatedAt                      DateTime               @updatedAt @db.Timestamptz(3)
+
+    @@unique([reportId, fightId])
+    @@index([encounterId, difficulty])
+}
+
+model Actor {
+    id              String          @id @default(cuid())
+    reportId        String
+    report          Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+    actorId         Int
+    guid            String
+    name            String
+    type            String
+    subType         String?
+    characterId     String?
+    character       Character?      @relation(fields: [characterId], references: [id], onDelete: SetNull)
+    playerFightFacts PlayerFightFact[]
+    createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+    updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+    @@unique([reportId, actorId])
+    @@index([guid])
+    @@index([characterId])
+}
+
+model Ability {
+    id        String   @id @default(cuid())
+    abilityId Int      @unique
+    name      String
+    icon      String?
+    createdAt DateTime @default(now()) @db.Timestamptz(3)
+    updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model Npc {
+    id        String   @id @default(cuid())
+    gameId    Int      @unique
+    name      String
+    createdAt DateTime @default(now()) @db.Timestamptz(3)
+    updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model PlayerFightFact {
+    id                           String               @id @default(cuid())
+    fightId                      String
+    fight                        Fight                @relation(fields: [fightId], references: [id], onDelete: Cascade)
+    actorId                      String
+    actor                        Actor                @relation(fields: [actorId], references: [id], onDelete: Cascade)
+    characterId                  String?
+    character                    Character?           @relation(fields: [characterId], references: [id], onDelete: SetNull)
+    metricVersion                Int
+    timeAliveMs                  Int?
+    deathTimeMs                  Int?
+    deathAbilityId               Int?
+    deathClassification          DeathClassification?
+    bossPercentAtDeath           Float?
+    diedBeforeFirstPhaseTransition Boolean            @default(false)
+    defensiveAvailableAtDeath    Boolean?
+    unusedAvailableDefensives    Json?
+    damageDone                   BigInt?
+    damageTaken                  BigInt?
+    avoidableDamageTaken         BigInt?
+    createdAt                    DateTime             @default(now()) @db.Timestamptz(3)
+    updatedAt                    DateTime             @updatedAt @db.Timestamptz(3)
+
+    @@unique([fightId, actorId, metricVersion])
+    @@index([characterId])
+}
+
+model RawPayloadCache {
+    id          String           @id @default(cuid())
+    reportCode  String
+    sourceType  RawPayloadSource
+    fightId     Int?
+    payload     Json
+    fetchedAt   DateTime         @default(now()) @db.Timestamptz(3)
+
+    @@index([reportCode, sourceType, fightId])
+    @@index([reportCode, fetchedAt])
 }
